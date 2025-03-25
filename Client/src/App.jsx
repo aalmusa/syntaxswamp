@@ -1,36 +1,24 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import viteLogo from "/vite.svg";
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import "./App.css";
+import Navbar from './components/Navbar';
+import HomePage from './pages/HomePage';
 import CreatePost from "./pages/CreatePost";
+import ViewPost from "./pages/ViewPost";
 
 function App() {
-  const [showEditor, setShowEditor] = useState(false);
-
   return (
-    <>
-      {showEditor ? (
-        <CreatePost />
-      ) : (
-        <div className="welcome-screen">
-          <div>
-            <a href="https://vite.dev" target="_blank">
-              <img src={viteLogo} className="logo" alt="Vite logo" />
-            </a>
-            <a href="https://react.dev" target="_blank">
-              <img src={reactLogo} className="logo react" alt="React logo" />
-            </a>
-          </div>
-          <h1>Syntax Swamp</h1>
-          <div className="card">
-            <button onClick={() => setShowEditor(true)}>
-              Open Code Editor
-            </button>
-            <p>Create and share HTML, CSS, and JavaScript code snippets.</p>
-          </div>
-        </div>
-      )}
-    </>
+    <Router>
+      <div className="app-container">
+        <Navbar />
+        <main className="main-content">
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/create" element={<CreatePost />} />
+            <Route path="/view/:postId" element={<ViewPost />} />
+          </Routes>
+        </main>
+      </div>
+    </Router>
   );
 }
 

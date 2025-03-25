@@ -1,9 +1,11 @@
 import { useState } from "react";
+import { Link, useNavigate } from 'react-router-dom';
 import EditorPane from "../components/EditorPane";
 import Preview from "../components/Preview";
 import "../styles/CreatePost.css";
 
 function CreatePost() {
+  const navigate = useNavigate();
   const [title, setTitle] = useState("Untitled Post");
   const [htmlCode, setHtmlCode] = useState("<!-- HTML code here -->");
   const [cssCode, setCssCode] = useState("/* CSS code here */");
@@ -37,6 +39,11 @@ function CreatePost() {
           success: true,
           message: `Post saved with ID: ${result.id}`,
         });
+        
+        // Navigate to homepage after successful save
+        setTimeout(() => {
+          navigate('/');
+        }, 1500);
       } else {
         const error = await response.text();
         setSaveStatus({ success: false, message: `Error: ${error}` });
@@ -54,13 +61,16 @@ function CreatePost() {
   return (
     <div className="create-post-container">
       <div className="editor-header">
-        <input
-          type="text"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          className="title-input"
-          placeholder="Enter post title..."
-        />
+        <div className="header-left">
+          <Link to="/" className="back-button">Back to Home</Link>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="title-input"
+            placeholder="Enter post title..."
+          />
+        </div>
         <button
           className="save-button"
           onClick={handleSave}

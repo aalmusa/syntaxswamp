@@ -1,0 +1,57 @@
+:root {
+  /* Primary colors - making them more vibrant */
+  --primary-color: #2a9d8f;
+  --primary-dark: #1a6e65;
+  --primary-light: #8ecec3;
+  
+  /* Secondary colors - improving contrast */
+  --secondary-color: #e9c46a;
+  --secondary-dark: #d4a72c;
+  --secondary-light: #f4e3b1;
+  
+  /* Neutral colors - ensuring good contrast */
+  --dark-color: #264653;
+  --light-color: #ffffff;
+  --gray-100: #f8f9fa;
+  --gray-200: #e9ecef;
+  --gray-300: #dee2e6;
+  --gray-400: #ced4da;
+  --gray-500: #adb5bd;
+  --gray-600: #6c757d;
+  --gray-700: #495057;
+  --gray-800: #343a40;
+  --gray-900: #212529;
+  
+  /* Status colors - making them more distinguishable */
+  --success-color: #2d9964;
+  --error-color: #e63946;
+  --warning-color: #f4a261;
+  --info-color: #457b9d;
+  
+  /* Card styles */
+  --card-shadow: 0 2px 8px rgba(38, 70, 83, 0.15);
+  --card-shadow-hover: 0 5px 15px rgba(38, 70, 83, 0.25);
+  
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  
+  /* Border radius */
+  --border-radius-sm: 4px;
+  --border-radius-md: 8px;
+  --border-radius-lg: 12px;
+  
+  /* Transitions */
+  --transition-speed: 0.3s;
+  
+  /* Font sizes */
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-md: 1rem;
+  --font-size-lg: 1.25rem;
+  --font-size-xl: 1.5rem;
+  --font-size-2xl: 2rem;
+}

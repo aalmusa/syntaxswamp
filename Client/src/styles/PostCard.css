@@ -1,0 +1,80 @@
+@import './variables.css';
+
+.post-card {
+  border-radius: var(--border-radius-md);
+  overflow: hidden;
+  box-shadow: var(--card-shadow);
+  transition: transform var(--transition-speed), box-shadow var(--transition-speed);
+  background-color: white;
+  border: 1px solid var(--gray-300);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.post-card:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--card-shadow-hover);
+}
+
+.post-card-link {
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.post-preview {
+  height: 200px;
+  overflow: hidden;
+  position: relative;
+  background-color: var(--gray-200);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.post-preview iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  pointer-events: none; /* Prevents interaction with the iframe */
+  transform: none; /* Remove transform as we're now handling scaling in the preview HTML */
+}
+
+.loading-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--gray-600);
+  font-weight: 500;
+}
+
+.post-info {
+  padding: var(--spacing-md);
+  border-top: 1px solid var(--gray-200);
+  background-color: var(--light-color);
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.post-title {
+  margin: 0 0 var(--spacing-sm) 0;
+  font-size: var(--font-size-lg);
+  color: var(--dark-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.post-date {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--gray-600);
+}
