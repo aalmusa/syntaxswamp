@@ -69,7 +69,7 @@ function PostCard({ post }) {
 
   return (
     <div className="post-card">
-      <Link to={`/view/${post.id}`} className="post-card-link">
+      <Link to={`/posts/${post.id}`} className="post-card-link">
         <div className="post-preview">
           {previewSrc ? (
             <iframe 

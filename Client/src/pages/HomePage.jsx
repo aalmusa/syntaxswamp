@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import PostCard from '../components/PostCard';
+import '../styles/common.css';
 import '../styles/HomePage.css';
 
 function HomePage() {
@@ -30,8 +31,8 @@ function HomePage() {
   }, []);
 
   return (
-    <div className="home-page">
-      <div className="page-title-container">
+    <div className="page-container">
+      <div className="page-header">
         <h1 className="page-title">Recent Pens</h1>
       </div>
 

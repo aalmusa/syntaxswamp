@@ -1,15 +1,18 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import EditorPane from '../components/EditorPane';
 import Preview from '../components/Preview';
 import '../styles/ViewPost.css';
+import '../styles/common.css';
 
 function ViewPost() {
   const { postId } = useParams();
+  const navigate = useNavigate();
   const [post, setPost] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+  const [isDeleting, setIsDeleting] = useState(false);
+
   useEffect(() => {
     const fetchPost = async () => {
       try {
@@ -33,6 +36,30 @@ function ViewPost() {
     
     fetchPost();
   }, [postId]);
+
+  const handleDelete = async () => {
+    if (!window.confirm('Are you sure you want to delete this post? This action cannot be undone.')) {
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`http://localhost:18080/posts/${postId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        alert('Post deleted successfully');
+        navigate('/');
+      } else {
+        throw new Error('Failed to delete post');
+      }
+    } catch (err) {
+      alert('Error deleting post: ' + err.message);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
   
   if (loading) {
     return <div className="loading-container">Loading post...</div>;
@@ -48,9 +75,19 @@ function ViewPost() {
   }
   
   return (
-    <div className="view-post-container">
-      <div className="view-header">
-        <h2 className="post-title">{post.title}</h2>
+    <div className="page-container">
+      <div className="page-header">
+        <h2 className="page-title">{post.title}</h2>
+        <div className="header-actions">
+          <Link to={`/posts/${postId}/edit`} className="button primary-button">Edit Post</Link>
+          <button 
+            onClick={handleDelete} 
+            className="button danger-button"
+            disabled={isDeleting}
+          >
+            {isDeleting ? 'Deleting...' : 'Delete Post'}
+          </button>
+        </div>
       </div>
       
       <div className="post-content">

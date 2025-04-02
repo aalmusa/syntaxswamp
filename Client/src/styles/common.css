@@ -1,0 +1,89 @@
+/* Common page layout */
+.page-container {
+  min-height: calc(100vh - 60px);
+  background-color: var(--light-color);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Common header styles */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-md) var(--spacing-lg);
+  background-color: white;
+  border-bottom: 1px solid var(--gray-300);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.header-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+/* Common button styles */
+.button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color 0.2s;
+}
+
+.primary-button {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.primary-button:hover {
+  background-color: var(--primary-dark);
+}
+
+.secondary-button {
+  background-color: var(--gray-500);
+  color: white;
+}
+
+.secondary-button:hover {
+  background-color: var(--gray-600);
+}
+
+.danger-button {
+  background-color: var(--error-color);
+  color: white;
+}
+
+.danger-button:hover {
+  background-color: #c82333;
+}
+
+.button:disabled {
+  background-color: var(--gray-400);
+  cursor: not-allowed;
+}
+
+/* Common loading and error states */
+.loading-container, .error-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: calc(100vh - 60px);
+  text-align: center;
+  padding: var(--spacing-xl);
+}
+
+.error-container h2 {
+  color: var(--error-color);
+  margin-bottom: var(--spacing-md);
+}

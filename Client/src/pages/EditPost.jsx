@@ -1,28 +1,48 @@
-import { useState } from "react";
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from "react";
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import EditorPane from "../components/EditorPane";
 import Preview from "../components/Preview";
 import "../styles/CreatePost.css";
-import "../styles/common.css";
+import '../styles/common.css';
 
-function CreatePost() {
+function EditPost() {
   const navigate = useNavigate();
-  const [title, setTitle] = useState("Untitled Post");
-  const [htmlCode, setHtmlCode] = useState("<!-- HTML code here -->");
-  const [cssCode, setCssCode] = useState("/* CSS code here */");
-  const [jsCode, setJsCode] = useState("// JavaScript code here");
+  const { postId } = useParams();
+  const [title, setTitle] = useState("");
+  const [htmlCode, setHtmlCode] = useState("");
+  const [cssCode, setCssCode] = useState("");
+  const [jsCode, setJsCode] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchPost = async () => {
+      try {
+        const response = await fetch(`http://localhost:18080/posts/${postId}`);
+        if (!response.ok) throw new Error('Post not found');
+        const data = await response.json();
+        setTitle(data.title);
+        setHtmlCode(data.html_code);
+        setCssCode(data.css_code);
+        setJsCode(data.js_code);
+      } catch (error) {
+        setSaveStatus({ success: false, message: error.message });
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPost();
+  }, [postId]);
 
   const handleSave = async () => {
     if (isSaving) return;
-
     setIsSaving(true);
     setSaveStatus(null);
 
     try {
-      const response = await fetch("http://localhost:18080/posts", {
-        method: "POST",
+      const response = await fetch(`http://localhost:18080/posts/${postId}`, {
+        method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
@@ -35,15 +55,12 @@ function CreatePost() {
       });
 
       if (response.ok) {
-        const result = await response.json();
         setSaveStatus({
           success: true,
-          message: `Post saved with ID: ${result.id}`,
+          message: "Post updated successfully",
         });
-        
-        // Navigate to post page after successful save
         setTimeout(() => {
-          navigate(`/posts/${result.id}`);
+          navigate(`/posts/${postId}`);
         }, 1500);
       } else {
         const error = await response.text();
@@ -59,11 +76,15 @@ function CreatePost() {
     }
   };
 
+  if (loading) {
+    return <div className="loading-container">Loading post...</div>;
+  }
+
   return (
     <div className="page-container">
       <div className="page-header">
         <div className="header-left">
-          <Link to="/" className="button secondary-button">Back to Home</Link>
+          <Link to={`/posts/${postId}`} className="button secondary-button">Back to Post</Link>
           <input
             type="text"
             value={title}
@@ -77,37 +98,20 @@ function CreatePost() {
           onClick={handleSave}
           disabled={isSaving}
         >
-          {isSaving ? "Saving..." : "Save Post"}
+          {isSaving ? "Saving..." : "Update Post"}
         </button>
       </div>
 
       {saveStatus && (
-        <div
-          className={`save-status ${saveStatus.success ? "success" : "error"}`}
-        >
+        <div className={`save-status ${saveStatus.success ? "success" : "error"}`}>
           {saveStatus.message}
         </div>
       )}
 
       <div className="editors-container">
-        <EditorPane
-          language="html"
-          code={htmlCode}
-          onChange={setHtmlCode}
-          label="HTML"
-        />
-        <EditorPane
-          language="css"
-          code={cssCode}
-          onChange={setCssCode}
-          label="CSS"
-        />
-        <EditorPane
-          language="javascript"
-          code={jsCode}
-          onChange={setJsCode}
-          label="JS"
-        />
+        <EditorPane language="html" code={htmlCode} onChange={setHtmlCode} label="HTML" />
+        <EditorPane language="css" code={cssCode} onChange={setCssCode} label="CSS" />
+        <EditorPane language="javascript" code={jsCode} onChange={setJsCode} label="JS" />
       </div>
 
       <div className="preview-container">
@@ -118,4 +122,4 @@ function CreatePost() {
   );
 }
 
-export default CreatePost;
+export default EditPost;
