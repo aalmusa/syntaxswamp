@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import EditorPane from "../components/EditorPane";
 import Preview from "../components/Preview";
 import "../styles/CreatePost.css";
@@ -13,6 +13,7 @@ function CreatePost() {
   const [htmlCode, setHtmlCode] = useState("<!-- HTML code here -->");
   const [cssCode, setCssCode] = useState("/* CSS code here */");
   const [jsCode, setJsCode] = useState("// JavaScript code here");
+  const [isPrivate, setIsPrivate] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null);
 
@@ -27,13 +28,14 @@ function CreatePost() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${user.token}`
+          Authorization: `Bearer ${user.token}`,
         },
         body: JSON.stringify({
           title,
           html_code: htmlCode,
           css_code: cssCode,
           js_code: jsCode,
+          isPrivate,
         }),
       });
 
@@ -43,7 +45,7 @@ function CreatePost() {
           success: true,
           message: `Post saved with ID: ${result.id}`,
         });
-        
+
         // Navigate to post page after successful save
         setTimeout(() => {
           navigate(`/posts/${result.id}`);
@@ -66,7 +68,9 @@ function CreatePost() {
     <div className="page-container">
       <div className="page-header">
         <div className="header-left">
-          <Link to="/" className="button secondary-button">Back to Home</Link>
+          <Link to="/" className="button secondary-button">
+            Back to Home
+          </Link>
           <input
             type="text"
             value={title}
@@ -75,13 +79,27 @@ function CreatePost() {
             placeholder="Enter post title..."
           />
         </div>
-        <button
-          className="button primary-button"
-          onClick={handleSave}
-          disabled={isSaving}
-        >
-          {isSaving ? "Saving..." : "Save Post"}
-        </button>
+        <div className="header-actions">
+          <div className="privacy-toggle">
+            <input
+              type="checkbox"
+              id="privacy-toggle"
+              checked={isPrivate}
+              onChange={(e) => setIsPrivate(e.target.checked)}
+              className="privacy-checkbox"
+            />
+            <label htmlFor="privacy-toggle" className="privacy-label">
+              {isPrivate ? "Private Post" : "Public Post"}
+            </label>
+          </div>
+          <button
+            className="button primary-button"
+            onClick={handleSave}
+            disabled={isSaving}
+          >
+            {isSaving ? "Saving..." : "Save Post"}
+          </button>
+        </div>
       </div>
 
       {saveStatus && (

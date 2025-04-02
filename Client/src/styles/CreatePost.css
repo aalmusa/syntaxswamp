@@ -1,4 +1,4 @@
-@import './variables.css';
+@import "./variables.css";
 
 .create-post-container {
   display: flex;
@@ -36,6 +36,53 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-md);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.privacy-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: var(--border-radius-sm);
+  background-color: var(--gray-100);
+  border: 1px solid var(--gray-300);
+}
+
+.privacy-checkbox {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--primary-color);
+  border-radius: 3px;
+  position: relative;
+  cursor: pointer;
+  vertical-align: -2px;
+}
+
+.privacy-checkbox:checked {
+  background-color: var(--primary-color);
+}
+
+.privacy-checkbox:checked::after {
+  content: "✓";
+  position: absolute;
+  top: -2px;
+  left: 2px;
+  font-size: 14px;
+  color: white;
+}
+
+.privacy-label {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
 }
 
 .back-button {

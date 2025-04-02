@@ -1,26 +1,42 @@
-import { useState, useEffect } from 'react';
-import PostCard from '../components/PostCard';
-import '../styles/common.css';
-import '../styles/HomePage.css';
+import { useState, useEffect } from "react";
+import { useAuth } from "../context/AuthContext";
+import PostCard from "../components/PostCard";
+import "../styles/common.css";
+import "../styles/HomePage.css";
 
 const formatDate = (dateString) => {
-  return new Date(dateString).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
+  return new Date(dateString).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
   });
 };
 
 function HomePage() {
+  const { user } = useAuth();
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Debug: Verify authentication status when component mounts
+  useEffect(() => {
+    if (user) {
+      console.log(
+        "Authenticated as user:",
+        user.userId,
+        "with token:",
+        user.token?.substring(0, 10) + "..."
+      );
+    } else {
+      console.log("Not authenticated");
+    }
+  }, [user]);
 
   useEffect(() => {
     const fetchPosts = async () => {
       try {
         setLoading(true);
-        const response = await fetch('http://localhost:18080/posts');
+        const response = await fetch("http://localhost:18080/posts");
         if (!response.ok) {
           throw new Error(`Error: ${response.status}`);
         }
@@ -28,8 +44,8 @@ function HomePage() {
         setPosts(data.posts || []);
         setError(null);
       } catch (err) {
-        setError('Failed to load posts. Please try again later.');
-        console.error('Error fetching posts:', err);
+        setError("Failed to load posts. Please try again later.");
+        console.error("Error fetching posts:", err);
       } finally {
         setLoading(false);
       }
@@ -55,7 +71,7 @@ function HomePage() {
           </div>
         ) : (
           <div className="posts-grid">
-            {posts.map(post => (
+            {posts.map((post) => (
               <PostCard key={post.id} post={post} />
             ))}
           </div>

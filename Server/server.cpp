@@ -2,6 +2,7 @@
 #include "crow/middlewares/cors.h"
 #include "sqlite3.h"
 #include "AuthMiddleware.h"
+#include "DeadlockSafeMutex.h"  // Include our new header
 #include <iostream>
 #include <string>
 #include <ctime>
@@ -27,54 +28,77 @@ std::string methodToString(const crow::HTTPMethod& method) {
 }
 
 /**
- * Transaction helper function to ensure ACID properties:
+ * Transaction helper function with deadlock handling capabilities
  * 
- * ACID stands for:
- * - Atomicity: All operations in a transaction either succeed completely or fail completely
- * - Consistency: Database remains in a consistent state before and after the transaction
- * - Isolation: Transactions are isolated from each other until they are committed
- * - Durability: Once a transaction is committed, it remains so even in the event of power loss or crashes
- * 
- * This function implements ACID properties by:
- * - Wrapping operations in an explicit SQL transaction (BEGIN/COMMIT/ROLLBACK)
- * - Providing atomicity by rolling back on any failure
- * - Supporting consistency through proper error handling
- * - Working with SQLite's internal mechanisms for isolation and durability
+ * This improved version adds:
+ * 1. Busy timeouts to prevent internal SQLite deadlocks
+ * 2. Retry capability to recover from transient lock issues
+ * 3. Error differentiation between deadlocks and other failures
  * 
  * @param db The SQLite database connection
- * @param operation A function containing the database operations to perform inside the transaction
+ * @param operation A function containing the database operations
+ * @param retries Number of retries if the transaction fails due to locking
  * @return true if transaction completes successfully, false otherwise
  */
-bool executeTransaction(sqlite3* db, const std::function<bool(sqlite3*)>& operation) {
-    // Begin transaction
-    if (sqlite3_exec(db, "BEGIN TRANSACTION", nullptr, nullptr, nullptr) != SQLITE_OK) {
-        std::cerr << "Failed to begin transaction: " << sqlite3_errmsg(db) << std::endl;
-        return false;
-    }
+bool executeTransaction(sqlite3* db, const std::function<bool(sqlite3*)>& operation, int retries = 3) {
+    // Set SQLite busy timeout to avoid internal deadlocks
+    // This makes SQLite wait up to 1000ms when a resource is locked
+    sqlite3_busy_timeout(db, 1000);
     
-    // Execute the operation
-    bool success = operation(db);
-    
-    // Commit or rollback based on the operation result
-    if (success) {
-        if (sqlite3_exec(db, "COMMIT", nullptr, nullptr, nullptr) != SQLITE_OK) {
-            std::cerr << "Failed to commit transaction: " << sqlite3_errmsg(db) << std::endl;
-            // Try to rollback if commit fails
-            sqlite3_exec(db, "ROLLBACK", nullptr, nullptr, nullptr);
+    for (int attempt = 0; attempt <= retries; attempt++) {
+        // Begin transaction
+        if (sqlite3_exec(db, "BEGIN TRANSACTION", nullptr, nullptr, nullptr) != SQLITE_OK) {
+            std::cerr << "Failed to begin transaction: " << sqlite3_errmsg(db) << std::endl;
+            
+            // If database is busy/locked, retry after delay
+            if (sqlite3_errcode(db) == SQLITE_BUSY || sqlite3_errcode(db) == SQLITE_LOCKED) {
+                if (attempt < retries) {
+                    std::cerr << "Database locked, retrying in " << (100 * (attempt + 1)) << "ms..." << std::endl;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100 * (attempt + 1)));
+                    continue;
+                }
+            }
             return false;
         }
-    } else {
-        if (sqlite3_exec(db, "ROLLBACK", nullptr, nullptr, nullptr) != SQLITE_OK) {
-            std::cerr << "Failed to rollback transaction: " << sqlite3_errmsg(db) << std::endl;
+        
+        // Execute the operation
+        bool success = operation(db);
+        
+        // Commit or rollback based on the operation result
+        if (success) {
+            if (sqlite3_exec(db, "COMMIT", nullptr, nullptr, nullptr) != SQLITE_OK) {
+                std::cerr << "Failed to commit transaction: " << sqlite3_errmsg(db) << std::endl;
+                
+                // Check if failure was due to lock contention
+                if (sqlite3_errcode(db) == SQLITE_BUSY || sqlite3_errcode(db) == SQLITE_LOCKED) {
+                    sqlite3_exec(db, "ROLLBACK", nullptr, nullptr, nullptr);
+                    if (attempt < retries) {
+                        std::cerr << "Commit failed due to locks, retrying..." << std::endl;
+                        std::this_thread::sleep_for(std::chrono::milliseconds(100 * (attempt + 1)));
+                        continue;
+                    }
+                } else {
+                    // Try to rollback if commit fails
+                    sqlite3_exec(db, "ROLLBACK", nullptr, nullptr, nullptr);
+                }
+                return false;
+            }
+            return true;  // Success!
+        } else {
+            if (sqlite3_exec(db, "ROLLBACK", nullptr, nullptr, nullptr) != SQLITE_OK) {
+                std::cerr << "Failed to rollback transaction: " << sqlite3_errmsg(db) << std::endl;
+            }
+            // No need to retry if the operation itself failed
+            return false;
         }
-        return false;
     }
     
-    return true;
+    std::cerr << "Transaction failed after " << retries << " retries" << std::endl;
+    return false;
 }
 
 /**
- * Configure SQLite database settings to ensure ACID compliance
+ * Configure SQLite database settings to ensure ACID compliance and deadlock prevention
  * 
  * This function configures several SQLite PRAGMA settings that enhance ACID guarantees:
  * 
@@ -92,6 +116,9 @@ bool executeTransaction(sqlite3* db, const std::function<bool(sqlite3*)>& operat
  *    - Enforces referential integrity constraints
  *    - Contributes to consistency by preventing invalid data relationships
  *    - Ensures database remains in a valid state after transactions
+ * 
+ * 4. busy_timeout = 5000
+ *    - Prevents deadlocks by making SQLite wait for up to 5000ms when a resource is locked
  * 
  * @param db The SQLite database connection to configure
  * @return true if all configurations succeed, false if any fail
@@ -123,6 +150,14 @@ bool configureSQLiteForACID(sqlite3* db) {
         return false;
     }
     
+    // Add deadlock timeout setting
+    const char* busyTimeout = "PRAGMA busy_timeout = 5000;";
+    if (sqlite3_exec(db, busyTimeout, nullptr, nullptr, &errMsg) != SQLITE_OK) {
+        std::cerr << "Failed to set busy timeout: " << errMsg << std::endl;
+        sqlite3_free(errMsg);
+        // Continue anyway, this is not critical
+    }
+    
     return true;
 }
 
@@ -135,12 +170,6 @@ void initializeDatabase(sqlite3* db) {
     
     /**
      * Create database tables using a transaction to ensure atomicity
-     * 
-     * By wrapping table creation in a transaction:
-     * - Either all tables are created successfully or none are (atomicity)
-     * - Database schema remains consistent with complete tables (consistency)
-     * - Other connections won't see partially created tables (isolation)
-     * - Once committed, tables persist even after crashes (durability)
      */
     executeTransaction(db, [](sqlite3* db) -> bool {
         char* errMsg = nullptr;
@@ -152,6 +181,7 @@ void initializeDatabase(sqlite3* db) {
                 html_code TEXT,
                 css_code TEXT, 
                 js_code TEXT,
+                isPrivate BOOLEAN DEFAULT 0 NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(user_id)
@@ -171,6 +201,36 @@ void initializeDatabase(sqlite3* db) {
             sqlite3_free(errMsg);
             return false;
         }
+        
+        // Add column to existing table if it doesn't exist (for compatibility with existing databases)
+        const char* alterSql = "PRAGMA table_info(posts)";
+        sqlite3_stmt* stmt;
+        
+        if (sqlite3_prepare_v2(db, alterSql, -1, &stmt, nullptr) != SQLITE_OK) {
+            std::cerr << "Error checking table schema: " << sqlite3_errmsg(db) << std::endl;
+            return false;
+        }
+        
+        bool hasPrivateColumn = false;
+        while (sqlite3_step(stmt) == SQLITE_ROW) {
+            std::string colName = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+            if (colName == "isPrivate") {
+                hasPrivateColumn = true;
+                break;
+            }
+        }
+        sqlite3_finalize(stmt);
+        
+        if (!hasPrivateColumn) {
+            const char* addColumnSql = "ALTER TABLE posts ADD COLUMN isPrivate BOOLEAN DEFAULT 0 NOT NULL";
+            if (sqlite3_exec(db, addColumnSql, nullptr, nullptr, &errMsg) != SQLITE_OK) {
+                std::cerr << "Error adding isPrivate column: " << errMsg << std::endl;
+                sqlite3_free(errMsg);
+                return false;
+            }
+            std::cout << "Added isPrivate column to existing posts table" << std::endl;
+        }
+        
         return true;
     });
 }
@@ -200,9 +260,9 @@ int main() {
     // Create authentication middleware
     AuthMiddleware auth;
     
-    // Mutex for post update operations - using a map to have a separate mutex per post
-    std::unordered_map<int, std::unique_ptr<std::mutex>> postMutexes;
-    std::mutex mutexMapMutex; // To protect the mutex map itself
+    // Use deadlock-safe mutexes instead of standard ones
+    std::unordered_map<int, std::unique_ptr<DeadlockSafeMutex>> postMutexes;
+    DeadlockSafeMutex mutexMapMutex("postMapMutex");
     
     // Root endpoint
     CROW_ROUTE(app, "/")([](){
@@ -327,30 +387,45 @@ int main() {
         return crow::response(200, result);
     });
     
-    // GET all posts - no authentication required
+    // GET all posts - filtered by privacy settings
     CROW_ROUTE(app, "/posts")
-    ([&db](){
+    ([&db, &auth](const crow::request& req){
         crow::json::wvalue result;
         sqlite3_stmt* stmt;
         
-        const char* sql = "SELECT id, title, created_at, updated_at FROM posts ORDER BY updated_at DESC";
+        // Check if user is authenticated
+        int user_id = auth.authenticate(req) ? auth.getUserId(req) : -1;
+        
+        const char* sql;
+        if (user_id != -1) {
+            // Authenticated user: show their private posts + all public posts
+            sql = "SELECT id, user_id, title, created_at, updated_at, isPrivate FROM posts WHERE (isPrivate = 0 OR user_id = ?) ORDER BY updated_at DESC";
+        } else {
+            // Unauthenticated user: show only public posts
+            sql = "SELECT id, user_id, title, created_at, updated_at, isPrivate FROM posts WHERE isPrivate = 0 ORDER BY updated_at DESC";
+        }
         
         if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
             return crow::response(500, sqlite3_errmsg(db));
         }
         
+        // Bind user_id parameter if authenticated
+        if (user_id != -1) {
+            sqlite3_bind_int(stmt, 1, user_id);
+        }
+        
         crow::json::wvalue::list posts;
-        int index = 0;
         
         while (sqlite3_step(stmt) == SQLITE_ROW) {
             crow::json::wvalue post;
             post["id"] = sqlite3_column_int(stmt, 0);
-            post["title"] = (const char*)sqlite3_column_text(stmt, 1);
-            post["created_at"] = (const char*)sqlite3_column_text(stmt, 2);
-            post["updated_at"] = (const char*)sqlite3_column_text(stmt, 3);
+            post["user_id"] = sqlite3_column_int(stmt, 1);
+            post["title"] = (const char*)sqlite3_column_text(stmt, 2);
+            post["created_at"] = (const char*)sqlite3_column_text(stmt, 3);
+            post["updated_at"] = (const char*)sqlite3_column_text(stmt, 4);
+            post["isPrivate"] = sqlite3_column_int(stmt, 5) != 0;
             
             posts.push_back(std::move(post));
-            index++;
         }
         
         sqlite3_finalize(stmt);
@@ -359,11 +434,17 @@ int main() {
         return crow::response(result);
     });
     
-    // GET a specific post - no authentication required
+    // GET a specific post - checks privacy settings
     CROW_ROUTE(app, "/posts/<int>")
-    ([&db](int id){
+    ([&db, &auth](const crow::request& req, int id){
+        // Check if user is authenticated
+        int user_id = auth.authenticate(req) ? auth.getUserId(req) : -1;
+        
+        // Add debugging to track authentication issues
+        std::cout << "Fetching post " << id << ", authenticated user_id: " << user_id << std::endl;
+        
         sqlite3_stmt* stmt;
-        const char* sql = "SELECT id, title, html_code, css_code, js_code, created_at, updated_at FROM posts WHERE id = ?";
+        const char* sql = "SELECT id, user_id, title, html_code, css_code, js_code, created_at, updated_at, isPrivate FROM posts WHERE id = ?";
         
         if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
             return crow::response(500, sqlite3_errmsg(db));
@@ -372,14 +453,29 @@ int main() {
         sqlite3_bind_int(stmt, 1, id);
         
         if (sqlite3_step(stmt) == SQLITE_ROW) {
+            int post_user_id = sqlite3_column_int(stmt, 1);
+            bool isPrivate = sqlite3_column_int(stmt, 8) != 0;
+            
+            // Debug log for privacy check
+            std::cout << "Post " << id << " belongs to user " << post_user_id 
+                      << ", isPrivate: " << (isPrivate ? "true" : "false") << std::endl;
+            
+            // Check privacy: if private, only creator can view
+            if (isPrivate && post_user_id != user_id) {
+                sqlite3_finalize(stmt);
+                return crow::response(403, "This post is private");
+            }
+            
             crow::json::wvalue post;
             post["id"] = sqlite3_column_int(stmt, 0);
-            post["title"] = (const char*)sqlite3_column_text(stmt, 1);
-            post["html_code"] = (const char*)sqlite3_column_text(stmt, 2);
-            post["css_code"] = (const char*)sqlite3_column_text(stmt, 3);
-            post["js_code"] = (const char*)sqlite3_column_text(stmt, 4);
-            post["created_at"] = (const char*)sqlite3_column_text(stmt, 5);
-            post["updated_at"] = (const char*)sqlite3_column_text(stmt, 6);
+            post["user_id"] = post_user_id;
+            post["title"] = (const char*)sqlite3_column_text(stmt, 2);
+            post["html_code"] = (const char*)sqlite3_column_text(stmt, 3);
+            post["css_code"] = (const char*)sqlite3_column_text(stmt, 4);
+            post["js_code"] = (const char*)sqlite3_column_text(stmt, 5);
+            post["created_at"] = (const char*)sqlite3_column_text(stmt, 6);
+            post["updated_at"] = (const char*)sqlite3_column_text(stmt, 7);
+            post["isPrivate"] = isPrivate;
             
             sqlite3_finalize(stmt);
             return crow::response(post);
@@ -389,7 +485,7 @@ int main() {
         }
     });
     
-    // CREATE a new post - requires authentication - now with transaction
+    // CREATE a new post - now with privacy setting
     CROW_ROUTE(app, "/posts").methods("POST"_method)
     ([&db, &auth](const crow::request& req) {
         // Check if user is authenticated
@@ -416,6 +512,7 @@ int main() {
         std::string html_code = "";
         std::string css_code = "";
         std::string js_code = "";
+        bool isPrivate = false;  // Default to public post
         
         if (x.has("html_code")) {
             html_code = x["html_code"].s();
@@ -429,21 +526,16 @@ int main() {
             js_code = x["js_code"].s();
         }
         
+        if (x.has("isPrivate")) {
+            isPrivate = x["isPrivate"].b();
+        }
+        
         int id = -1;
         crow::response errorResponse(500);
         
-        /**
-         * Create post using an atomic transaction
-         * 
-         * Benefits:
-         * - Post creation either completely succeeds or fails (atomicity)
-         * - Database constraints are maintained (consistency)
-         * - Other operations cannot see partial post data (isolation)
-         * - Once committed, post data persists even during crashes (durability)
-         */
         bool success = executeTransaction(db, [&](sqlite3* db) -> bool {
             sqlite3_stmt* stmt;
-            const char* sql = "INSERT INTO posts (user_id, title, html_code, css_code, js_code) VALUES (?, ?, ?, ?, ?)";
+            const char* sql = "INSERT INTO posts (user_id, title, html_code, css_code, js_code, isPrivate) VALUES (?, ?, ?, ?, ?, ?)";
             
             if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
                 std::string error = sqlite3_errmsg(db);
@@ -457,6 +549,7 @@ int main() {
             sqlite3_bind_text(stmt, 3, html_code.c_str(), -1, SQLITE_TRANSIENT);
             sqlite3_bind_text(stmt, 4, css_code.c_str(), -1, SQLITE_TRANSIENT);
             sqlite3_bind_text(stmt, 5, js_code.c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_int(stmt, 6, isPrivate ? 1 : 0);
             
             if (sqlite3_step(stmt) != SQLITE_DONE) {
                 std::string error = sqlite3_errmsg(db);
@@ -479,6 +572,7 @@ int main() {
         
         crow::json::wvalue result;
         result["id"] = id;
+        result["isPrivate"] = isPrivate;
         result["message"] = "Post created successfully";
         
         auto res = crow::response(201, result);
@@ -488,7 +582,7 @@ int main() {
         return res;
     });
     
-    // UPDATE a post - requires authentication - now with transaction
+    // UPDATE a post - respects privacy settings for editing
     CROW_ROUTE(app, "/posts/<int>").methods("PUT"_method)
     ([&db, &postMutexes, &mutexMapMutex, &auth](const crow::request& req, int id) {
         // Check if user is authenticated
@@ -502,24 +596,60 @@ int main() {
             return crow::response(400, "Invalid JSON");
         }
         
-        /**
-         * Mutex locking for thread-safety (enhanced isolation)
-         * 
-         * This two-level mutex approach:
-         * 1. First acquires a lock on the mutex map to safely access/create the post-specific mutex
-         * 2. Then locks the individual post mutex to prevent concurrent modifications to the same post
-         * 
-         * This provides application-level isolation beyond what SQLite provides internally
-         */
-        {
-            std::lock_guard<std::mutex> mapLock(mutexMapMutex);
-            if (postMutexes.find(id) == postMutexes.end()) {
-                postMutexes[id] = std::make_unique<std::mutex>();
-            }
+        // Get post privacy status and ownership before acquiring locks
+        sqlite3_stmt* privacy_stmt;
+        int post_owner_id = -1;
+        bool isPrivate = false;
+        
+        const char* privacy_sql = "SELECT user_id, isPrivate FROM posts WHERE id = ?";
+        if (sqlite3_prepare_v2(db, privacy_sql, -1, &privacy_stmt, nullptr) != SQLITE_OK) {
+            return crow::response(500, sqlite3_errmsg(db));
         }
         
-        // Now lock the specific post mutex for exclusive access
-        std::lock_guard<std::mutex> postLock(*postMutexes[id]);
+        sqlite3_bind_int(privacy_stmt, 1, id);
+        
+        if (sqlite3_step(privacy_stmt) == SQLITE_ROW) {
+            post_owner_id = sqlite3_column_int(privacy_stmt, 0);
+            isPrivate = sqlite3_column_int(privacy_stmt, 1) != 0;
+        } else {
+            sqlite3_finalize(privacy_stmt);
+            return crow::response(404, "Post not found");
+        }
+        
+        sqlite3_finalize(privacy_stmt);
+        
+        // If post is private, only the owner can edit it
+        if (isPrivate && user_id != post_owner_id) {
+            return crow::response(403, "You don't have permission to edit this private post");
+        }
+        
+        /**
+         * Mutex locking for thread-safety with deadlock prevention
+         */
+        DeadlockSafeMutex* postMutex = nullptr;
+        
+        // Phase 1: Get the post-specific mutex
+        if (!mutexMapMutex.tryLockWithTimeout(500)) {
+            return crow::response(503, "Server busy, please try again later");
+        }
+        
+        try {
+            // Create the mutex if it doesn't exist
+            if (postMutexes.find(id) == postMutexes.end()) {
+                postMutexes[id] = std::make_unique<DeadlockSafeMutex>("post_" + std::to_string(id));
+            }
+            postMutex = postMutexes[id].get();
+            mutexMapMutex.unlock();  // Release map mutex before acquiring post mutex
+        }
+        catch (...) {
+            mutexMapMutex.unlock();  // Ensure we release the mutex even if an exception occurs
+            return crow::response(500, "Internal server error");
+        }
+        
+        // Phase 2: Lock the post-specific mutex
+        if (!postMutex->tryLockWithTimeout(1000)) {
+            return crow::response(503, "Post is being edited by another user, please try again later");
+        }
         
         // Extract data from request
         std::string title = "";
@@ -543,41 +673,27 @@ int main() {
             js_code = x["js_code"].s();
         }
         
+        // Allow updating privacy setting if user is the owner
+        bool updatePrivacy = false;
+        bool newPrivacySetting = isPrivate;
+        
+        if (x.has("isPrivate") && user_id == post_owner_id) {
+            updatePrivacy = true;
+            newPrivacySetting = x["isPrivate"].b();
+        }
+        
         crow::response errorResponse(500);
         
-        /**
-         * Execute post update as an atomic transaction
-         * 
-         * Combined with mutex locks, this provides:
-         * - Double layer of isolation (app-level and database-level)
-         * - Complete atomicity for complex update operations
-         * - Consistency through enforcing authorization checks inside the transaction
-         * - Durability through SQLite's transaction commit mechanism
-         */
         bool success = executeTransaction(db, [&](sqlite3* db) -> bool {
-            // Check if post exists and belongs to the authenticated user
-            sqlite3_stmt* check_stmt;
-            const char* check_sql = "SELECT id FROM posts WHERE id = ? AND user_id = ?";
-            
-            if (sqlite3_prepare_v2(db, check_sql, -1, &check_stmt, nullptr) != SQLITE_OK) {
-                errorResponse = crow::response(500, sqlite3_errmsg(db));
-                return false;
-            }
-            
-            sqlite3_bind_int(check_stmt, 1, id);
-            sqlite3_bind_int(check_stmt, 2, user_id);
-            
-            bool authorized = sqlite3_step(check_stmt) == SQLITE_ROW;
-            sqlite3_finalize(check_stmt);
-            
-            if (!authorized) {
-                errorResponse = crow::response(403, "Forbidden - You don't have permission to modify this post");
-                return false;
-            }
-            
-            // Update the post
+            // Update the post (privacy check already done)
             sqlite3_stmt* stmt;
-            const char* sql = "UPDATE posts SET title = ?, html_code = ?, css_code = ?, js_code = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?";
+            const char* sql;
+            
+            if (updatePrivacy) {
+                sql = "UPDATE posts SET title = ?, html_code = ?, css_code = ?, js_code = ?, isPrivate = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?";
+            } else {
+                sql = "UPDATE posts SET title = ?, html_code = ?, css_code = ?, js_code = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?";
+            }
             
             if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
                 errorResponse = crow::response(500, sqlite3_errmsg(db));
@@ -588,7 +704,13 @@ int main() {
             sqlite3_bind_text(stmt, 2, html_code.c_str(), -1, SQLITE_TRANSIENT);
             sqlite3_bind_text(stmt, 3, css_code.c_str(), -1, SQLITE_TRANSIENT);
             sqlite3_bind_text(stmt, 4, js_code.c_str(), -1, SQLITE_TRANSIENT);
-            sqlite3_bind_int(stmt, 5, id);
+            
+            if (updatePrivacy) {
+                sqlite3_bind_int(stmt, 5, newPrivacySetting ? 1 : 0);
+                sqlite3_bind_int(stmt, 6, id);
+            } else {
+                sqlite3_bind_int(stmt, 5, id);
+            }
             
             if (sqlite3_step(stmt) != SQLITE_DONE) {
                 std::string error = sqlite3_errmsg(db);
@@ -599,7 +721,10 @@ int main() {
             
             sqlite3_finalize(stmt);
             return true;
-        });
+        }, 3);  // Allow up to 3 retries
+        
+        // Release the post mutex
+        postMutex->unlock();
         
         if (!success) {
             return errorResponse;
@@ -607,6 +732,7 @@ int main() {
         
         crow::json::wvalue result;
         result["message"] = "Post updated successfully";
+        result["isPrivate"] = updatePrivacy ? newPrivacySetting : isPrivate;
         
         return crow::response(200, result);
     });
@@ -689,6 +815,90 @@ int main() {
         result["message"] = "Post deleted successfully";
         
         return crow::response(200, result);
+    });
+
+    // GET post creator - respects privacy settings
+    CROW_ROUTE(app, "/posts/<int>/creator")
+    ([&db, &auth](const crow::request& req, int post_id) {
+        // Use our transaction helper to ensure ACID properties
+        crow::response errorResponse(500);
+        crow::json::wvalue result;
+        bool success = false;
+        
+        // Check if user is authenticated
+        int user_id = auth.authenticate(req) ? auth.getUserId(req) : -1;
+        
+        // First check if the post is private
+        sqlite3_stmt* privacy_stmt;
+        const char* privacy_sql = "SELECT user_id, isPrivate FROM posts WHERE id = ?";
+        
+        if (sqlite3_prepare_v2(db, privacy_sql, -1, &privacy_stmt, nullptr) != SQLITE_OK) {
+            return crow::response(500, sqlite3_errmsg(db));
+        }
+        
+        sqlite3_bind_int(privacy_stmt, 1, post_id);
+        
+        int post_user_id = -1;
+        bool isPrivate = false;
+        
+        if (sqlite3_step(privacy_stmt) == SQLITE_ROW) {
+            post_user_id = sqlite3_column_int(privacy_stmt, 0);
+            isPrivate = sqlite3_column_int(privacy_stmt, 1) != 0;
+        } else {
+            sqlite3_finalize(privacy_stmt);
+            return crow::response(404, "Post not found");
+        }
+        
+        sqlite3_finalize(privacy_stmt);
+        
+        // If post is private and current user is not the owner, deny access
+        if (isPrivate && post_user_id != user_id) {
+            return crow::response(403, "This post is private");
+        }
+        
+        // Query to get post creator information
+        sqlite3_stmt* stmt;
+        const char* sql = 
+            "SELECT u.user_id, u.username, u.email, p.id, p.isPrivate "
+            "FROM users u "
+            "JOIN posts p ON u.user_id = p.user_id "
+            "WHERE p.id = ?";
+        
+        if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+            errorResponse = crow::response(500, "Database error: " + std::string(sqlite3_errmsg(db)));
+            return errorResponse;
+        }
+        
+        sqlite3_bind_int(stmt, 1, post_id);
+        
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+            // Post found, extract creator information
+            result["user_id"] = sqlite3_column_int(stmt, 0);
+            
+            // Safely handle NULL values in the query results
+            const unsigned char* username = sqlite3_column_text(stmt, 1);
+            if (username) result["username"] = std::string(reinterpret_cast<const char*>(username));
+            
+            // Only include email if user is the creator or an admin
+            if (user_id == sqlite3_column_int(stmt, 0)) {
+                const unsigned char* email = sqlite3_column_text(stmt, 2);
+                if (email) result["email"] = std::string(reinterpret_cast<const char*>(email));
+            }
+            
+            // Add the post_id and privacy for reference
+            result["post_id"] = sqlite3_column_int(stmt, 3);
+            result["isPrivate"] = sqlite3_column_int(stmt, 4) != 0;
+            
+            success = true;
+        }
+        
+        sqlite3_finalize(stmt);
+        
+        if (!success) {
+            return crow::response(404, "Post not found or has no creator");
+        }
+        
+        return crow::response(result);
     });
 
     //set the port, set the app to run on multiple threads, and run the app

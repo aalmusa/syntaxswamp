@@ -1,5 +1,5 @@
-@import './variables.css';
-@import './common.css';
+@import "./variables.css";
+@import "./common.css";
 
 .view-post-container {
   min-height: calc(100vh - 60px); /* Account for navbar */
@@ -17,6 +17,21 @@
   border-bottom: 1px solid var(--gray-300);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   margin-bottom: 20px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.privacy-badge {
+  background-color: var(--secondary-color);
+  color: var(--dark-color);
+  padding: 4px 8px;
+  border-radius: var(--border-radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
 }
 
 .post-title {
@@ -38,7 +53,8 @@
   overflow: hidden;
 }
 
-.loading-container, .error-container {
+.loading-container,
+.error-container {
   display: flex;
   flex-direction: column;
   justify-content: center;
