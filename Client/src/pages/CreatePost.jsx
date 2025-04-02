@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import EditorPane from "../components/EditorPane";
 import Preview from "../components/Preview";
 import "../styles/CreatePost.css";
@@ -7,6 +8,7 @@ import "../styles/common.css";
 
 function CreatePost() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [title, setTitle] = useState("Untitled Post");
   const [htmlCode, setHtmlCode] = useState("<!-- HTML code here -->");
   const [cssCode, setCssCode] = useState("/* CSS code here */");
@@ -25,6 +27,7 @@ function CreatePost() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${user.token}`
         },
         body: JSON.stringify({
           title,
