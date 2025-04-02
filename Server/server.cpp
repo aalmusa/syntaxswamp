@@ -1,6 +1,7 @@
 #include "crow.h"
 #include "crow/middlewares/cors.h"
 #include "sqlite3.h"
+#include "AuthMiddleware.h"
 #include <iostream>
 #include <string>
 #include <ctime>
@@ -30,12 +31,22 @@ void initializeDatabase(sqlite3* db) {
     const char* sql = R"(
         CREATE TABLE IF NOT EXISTS posts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
             title TEXT NOT NULL,
             html_code TEXT,
             css_code TEXT, 
             js_code TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(user_id)
+        );
+        
+        CREATE TABLE IF NOT EXISTS users (
+            user_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL UNIQUE,
+            email TEXT NOT NULL UNIQUE,
+            password TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     )";
     
@@ -67,6 +78,9 @@ int main() {
     // Create tables if they don't exist
     initializeDatabase(db);
     
+    // Create authentication middleware
+    AuthMiddleware auth;
+    
     // Mutex for post update operations - using a map to have a separate mutex per post
     std::unordered_map<int, std::unique_ptr<std::mutex>> postMutexes;
     std::mutex mutexMapMutex; // To protect the mutex map itself
@@ -76,7 +90,102 @@ int main() {
         return "Codepen Style Website API";
     });
     
-    // GET all posts
+    // User registration endpoint
+    CROW_ROUTE(app, "/auth/register").methods("POST"_method)
+    ([&db](const crow::request& req) {
+        auto x = crow::json::load(req.body);
+        if (!x) {
+            return crow::response(400, "Invalid JSON");
+        }
+        
+        if (!x.has("username") || !x.has("email") || !x.has("password")) {
+            return crow::response(400, "Missing required fields");
+        }
+        
+        std::string username = x["username"].s();
+        std::string email = x["email"].s();
+        std::string password = x["password"].s();
+                
+        sqlite3_stmt* stmt;
+        const char* sql = "INSERT INTO users (username, email, password) VALUES (?, ?, ?)";
+        
+        if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+            return crow::response(500, sqlite3_errmsg(db));
+        }
+        
+        sqlite3_bind_text(stmt, 1, username.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 2, email.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 3, password.c_str(), -1, SQLITE_TRANSIENT);
+        
+        if (sqlite3_step(stmt) != SQLITE_DONE) {
+            std::string error = sqlite3_errmsg(db);
+            sqlite3_finalize(stmt);
+            if (error.find("UNIQUE constraint failed") != std::string::npos) {
+                return crow::response(409, "Username or email already exists");
+            }
+            return crow::response(500, error);
+        }
+        
+        int user_id = sqlite3_last_insert_rowid(db);
+        sqlite3_finalize(stmt);
+        
+        crow::json::wvalue result;
+        result["user_id"] = user_id;
+        result["message"] = "User registered successfully";
+        
+        return crow::response(201, result);
+    });
+    
+    // User login endpoint
+    CROW_ROUTE(app, "/auth/login").methods("POST"_method)
+    ([&db, &auth](const crow::request& req) {
+        auto x = crow::json::load(req.body);
+        if (!x) {
+            return crow::response(400, "Invalid JSON");
+        }
+        
+        if (!x.has("username") || !x.has("password")) {
+            return crow::response(400, "Missing username or password");
+        }
+        
+        std::string username = x["username"].s();
+        std::string password = x["password"].s();
+        
+        sqlite3_stmt* stmt;
+        const char* sql = "SELECT user_id, password FROM users WHERE username = ?";
+        
+        if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+            return crow::response(500, sqlite3_errmsg(db));
+        }
+        
+        sqlite3_bind_text(stmt, 1, username.c_str(), -1, SQLITE_TRANSIENT);
+        
+        if (sqlite3_step(stmt) != SQLITE_ROW) {
+            sqlite3_finalize(stmt);
+            return crow::response(401, "Invalid username or password");
+        }
+        
+        int user_id = sqlite3_column_int(stmt, 0);
+        std::string stored_password = (const char*)sqlite3_column_text(stmt, 1);
+        
+        sqlite3_finalize(stmt);
+        
+        if (password != stored_password) {
+            return crow::response(401, "Invalid username or password");
+        }
+        
+        // Generate authentication token
+        std::string token = auth.generateToken(user_id);
+        
+        crow::json::wvalue result;
+        result["token"] = token;
+        result["user_id"] = user_id;
+        result["username"] = username;
+        
+        return crow::response(200, result);
+    });
+    
+    // GET all posts - no authentication required
     CROW_ROUTE(app, "/posts")
     ([&db](){
         crow::json::wvalue result;
@@ -108,7 +217,7 @@ int main() {
         return crow::response(result);
     });
     
-    // GET a specific post
+    // GET a specific post - no authentication required
     CROW_ROUTE(app, "/posts/<int>")
     ([&db](int id){
         sqlite3_stmt* stmt;
@@ -138,9 +247,15 @@ int main() {
         }
     });
     
-    // CREATE a new post
+    // CREATE a new post - requires authentication
     CROW_ROUTE(app, "/posts").methods("POST"_method)
-    ([&db](const crow::request& req){
+    ([&db, &auth](const crow::request& req) {
+        // Check if user is authenticated
+        if (!auth.authenticate(req)) {
+            return crow::response(401, "Unauthorized - Login required");
+        }
+        int user_id = auth.getUserId(req);
+        
         std::cout << "Received POST request to /posts" << std::endl;
         std::cout << "Request body: " << req.body << std::endl;
         
@@ -158,7 +273,7 @@ int main() {
         std::cout << "Processing valid request with title: " << x["title"].s() << std::endl;
         
         sqlite3_stmt* stmt;
-        const char* sql = "INSERT INTO posts (title, html_code, css_code, js_code) VALUES (?, ?, ?, ?)";
+        const char* sql = "INSERT INTO posts (user_id, title, html_code, css_code, js_code) VALUES (?, ?, ?, ?, ?)";
         
         if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
             std::string error = sqlite3_errmsg(db);
@@ -183,10 +298,11 @@ int main() {
             js_code = x["js_code"].s();
         }
         
-        sqlite3_bind_text(stmt, 1, title.c_str(), -1, SQLITE_TRANSIENT);
-        sqlite3_bind_text(stmt, 2, html_code.c_str(), -1, SQLITE_TRANSIENT);
-        sqlite3_bind_text(stmt, 3, css_code.c_str(), -1, SQLITE_TRANSIENT);
-        sqlite3_bind_text(stmt, 4, js_code.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int(stmt, 1, user_id);
+        sqlite3_bind_text(stmt, 2, title.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 3, html_code.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 4, css_code.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 5, js_code.c_str(), -1, SQLITE_TRANSIENT);
         
         if (sqlite3_step(stmt) != SQLITE_DONE) {
             std::string error = sqlite3_errmsg(db);
@@ -211,9 +327,15 @@ int main() {
         return res;
     });
     
-    // UPDATE a post
+    // UPDATE a post - requires authentication
     CROW_ROUTE(app, "/posts/<int>").methods("PUT"_method)
-    ([&db, &postMutexes, &mutexMapMutex](const crow::request& req, int id){
+    ([&db, &postMutexes, &mutexMapMutex, &auth](const crow::request& req, int id) {
+        // Check if user is authenticated
+        if (!auth.authenticate(req)) {
+            return crow::response(401, "Unauthorized - Login required");
+        }
+        int user_id = auth.getUserId(req);
+        
         auto x = crow::json::load(req.body);
         if (!x) {
             return crow::response(400, "Invalid JSON");
@@ -230,16 +352,17 @@ int main() {
         // Now lock the specific post mutex for exclusive access
         std::lock_guard<std::mutex> postLock(*postMutexes[id]);
         
-        // Check if post exists
+        // Check if post exists and belongs to the authenticated user
         sqlite3_stmt* check_stmt;
-        sqlite3_prepare_v2(db, "SELECT id FROM posts WHERE id = ?", -1, &check_stmt, nullptr);
+        sqlite3_prepare_v2(db, "SELECT id FROM posts WHERE id = ? AND user_id = ?", -1, &check_stmt, nullptr);
         sqlite3_bind_int(check_stmt, 1, id);
+        sqlite3_bind_int(check_stmt, 2, user_id);
         
-        bool exists = sqlite3_step(check_stmt) == SQLITE_ROW;
+        bool authorized = sqlite3_step(check_stmt) == SQLITE_ROW;
         sqlite3_finalize(check_stmt);
         
-        if (!exists) {
-            return crow::response(404, "Post not found");
+        if (!authorized) {
+            return crow::response(403, "Forbidden - You don't have permission to modify this post");
         }
         
         // Update the post - this is the critical section
@@ -291,9 +414,28 @@ int main() {
         return crow::response(200, result);
     });
     
-    // DELETE a post
+    // DELETE a post - requires authentication
     CROW_ROUTE(app, "/posts/<int>").methods("DELETE"_method)
-    ([&db](int id){
+    ([&db, &auth](const crow::request& req, int id) {
+        // Check if user is authenticated
+        if (!auth.authenticate(req)) {
+            return crow::response(401, "Unauthorized - Login required");
+        }
+        int user_id = auth.getUserId(req);
+        
+        // Check if post exists and belongs to the authenticated user
+        sqlite3_stmt* check_stmt;
+        sqlite3_prepare_v2(db, "SELECT id FROM posts WHERE id = ? AND user_id = ?", -1, &check_stmt, nullptr);
+        sqlite3_bind_int(check_stmt, 1, id);
+        sqlite3_bind_int(check_stmt, 2, user_id);
+        
+        bool authorized = sqlite3_step(check_stmt) == SQLITE_ROW;
+        sqlite3_finalize(check_stmt);
+        
+        if (!authorized) {
+            return crow::response(403, "Forbidden - You don't have permission to delete this post");
+        }
+        
         sqlite3_stmt* stmt;
         const char* sql = "DELETE FROM posts WHERE id = ?";
         
