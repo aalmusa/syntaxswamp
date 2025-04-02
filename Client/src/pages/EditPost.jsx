@@ -4,10 +4,12 @@ import EditorPane from "../components/EditorPane";
 import Preview from "../components/Preview";
 import "../styles/CreatePost.css";
 import '../styles/common.css';
+import { useAuth } from '../context/AuthContext';
 
 function EditPost() {
   const navigate = useNavigate();
   const { postId } = useParams();
+  const { user } = useAuth();
   const [title, setTitle] = useState("");
   const [htmlCode, setHtmlCode] = useState("");
   const [cssCode, setCssCode] = useState("");
@@ -45,6 +47,7 @@ function EditPost() {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${user.token}`
         },
         body: JSON.stringify({
           title,

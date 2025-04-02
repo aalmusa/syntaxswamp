@@ -1,18 +1,22 @@
 import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import '../styles/Navbar.css';
 
 function Navbar() {
+  const { user, logout } = useAuth();
+
   return (
     <nav className="navbar">
-      <div className="container">
-        <Link to="/" className="nav-brand">
-          <span className="brand-text">SyntaxSwamp</span>
-        </Link>
-        <div className="nav-items">
-          <Link to="/" className="nav-item">Home</Link>
-          <Link to="/create" className="nav-item button">Create Post</Link>
+      <Link to="/" className="nav-brand">SyntaxSwamp</Link>
+      {user && (
+        <div className="nav-actions">
+          <Link to="/posts/new" className="create-button">Create New</Link>
+          <div className="user-info">
+            <span className="username">{user.username}</span>
+            <button onClick={logout} className="logout-button">Logout</button>
+          </div>
         </div>
-      </div>
+      )}
     </nav>
   );
 }

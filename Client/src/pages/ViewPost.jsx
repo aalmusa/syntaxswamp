@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import EditorPane from '../components/EditorPane';
 import Preview from '../components/Preview';
 import '../styles/ViewPost.css';
@@ -8,6 +9,7 @@ import '../styles/common.css';
 function ViewPost() {
   const { postId } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [post, setPost] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -46,13 +48,17 @@ function ViewPost() {
     try {
       const response = await fetch(`http://localhost:18080/posts/${postId}`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${user.token}`
+        }
       });
 
       if (response.ok) {
         alert('Post deleted successfully');
         navigate('/');
       } else {
-        throw new Error('Failed to delete post');
+        const data = await response.text();
+        throw new Error(data || 'Failed to delete post');
       }
     } catch (err) {
       alert('Error deleting post: ' + err.message);

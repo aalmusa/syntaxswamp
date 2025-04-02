@@ -1,13 +1,12 @@
 @import './variables.css';
 
 .navbar {
-  width: 100%;
-  background-color: var(--light-color);
-  box-shadow: var(--card-shadow);
-  padding: var(--spacing-md) 0;
-  position: sticky;
-  top: 0;
-  z-index: 1000;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 2rem;
+  background-color: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .navbar .container {
@@ -20,43 +19,61 @@
 }
 
 .nav-brand {
-  text-decoration: none;
-}
-
-.brand-text {
-  font-size: var(--font-size-xl);
+  font-size: 1.5rem;
   font-weight: bold;
-  color: var(--dark-color);
-}
-
-.nav-items {
-  display: flex;
-  gap: var(--spacing-lg);
-  align-items: center;
-}
-
-.nav-item {
+  color: var(--primary-color);
   text-decoration: none;
-  color: var(--gray-600);
-  font-size: var(--font-size-md);
-  transition: color 0.2s ease;
 }
 
-.nav-item:hover {
-  color: var(--dark-color);
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
 }
 
-.nav-item.button {
+.create-button {
+  padding: 0.5rem 1rem;
   background-color: var(--primary-color);
-  color: var(--light-color);
-  padding: var(--spacing-sm) var(--spacing-lg);
-  border-radius: var(--border-radius-md);
-  transition: background-color 0.2s ease;
+  color: white;
+  border-radius: var(--border-radius-sm);
+  text-decoration: none;
+  transition: background-color 0.2s;
 }
 
-.nav-item.button:hover {
+.create-button:hover {
   background-color: var(--primary-dark);
-  color: var(--light-color);
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.username {
+  color: var(--gray-700);
+  font-weight: 500;
+}
+
+.logout-button {
+  padding: 0.5rem 1rem;
+  background-color: transparent;
+  color: var(--error-color);
+  border: 1px solid var(--error-color);
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.logout-button:hover {
+  background-color: var(--error-color);
+  color: white;
+}
+
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
 }
 
 @media (max-width: 768px) {
