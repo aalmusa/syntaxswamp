@@ -73,6 +73,14 @@
   font-weight: 600;
 }
 
+.post-dates {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85em;
+  color: #666;
+}
+
 .post-date {
   margin: 0;
   font-size: var(--font-size-sm);

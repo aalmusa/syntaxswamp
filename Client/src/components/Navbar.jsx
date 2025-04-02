@@ -4,11 +4,13 @@ import '../styles/Navbar.css';
 function Navbar() {
   return (
     <nav className="navbar">
-      <div className="nav-container">
-        <Link to="/" className="nav-logo">Syntax Swamp</Link>
-        <div className="nav-links">
-          <Link to="/" className="nav-link">Home</Link>
-          <Link to="/create" className="nav-button">Create New Pen</Link>
+      <div className="container">
+        <Link to="/" className="nav-brand">
+          <span className="brand-text">SyntaxSwamp</span>
+        </Link>
+        <div className="nav-items">
+          <Link to="/" className="nav-item">Home</Link>
+          <Link to="/create" className="nav-item button">Create Post</Link>
         </div>
       </div>
     </nav>

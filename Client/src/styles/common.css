@@ -31,13 +31,13 @@
 
 /* Common button styles */
 .button {
-  padding: 8px 16px;
+  padding: var(--spacing-sm) var(--spacing-md);
   border: none;
-  border-radius: 4px;
-  font-size: 14px;
+  border-radius: var(--border-radius-sm);
+  font-size: var(--font-size-sm);
   cursor: pointer;
   text-decoration: none;
-  transition: background-color 0.2s;
+  transition: background-color var(--transition-speed);
 }
 
 .primary-button {
@@ -64,7 +64,16 @@
 }
 
 .danger-button:hover {
-  background-color: #c82333;
+  background-color: var(--error-color-dark);
+}
+
+.edit-button {
+  background-color: var(--success-color);
+  color: white;
+}
+
+.edit-button:hover {
+  background-color: var(--success-color-dark);
 }
 
 .button:disabled {

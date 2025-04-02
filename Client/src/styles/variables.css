@@ -24,9 +24,13 @@
   
   /* Status colors - making them more distinguishable */
   --success-color: #2d9964;
+  --success-color-dark: #217a4e;
   --error-color: #e63946;
+  --error-color-dark: #c82333;
   --warning-color: #f4a261;
+  --warning-color-dark: #e38b44;
   --info-color: #457b9d;
+  --info-color-dark: #356785;
   
   /* Card styles */
   --card-shadow: 0 2px 8px rgba(38, 70, 83, 0.15);

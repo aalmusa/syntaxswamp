@@ -85,7 +85,10 @@ function PostCard({ post }) {
         </div>
         <div className="post-info">
           <h3 className="post-title">{post.title}</h3>
-          <p className="post-date">Created: {formatDate(post.created_at)}</p>
+          <div className="post-dates">
+            <p className="post-date">Created: {formatDate(post.created_at)}</p>
+            <p className="post-date">Updated: {formatDate(post.updated_at || post.created_at)}</p>
+          </div>
         </div>
       </Link>
     </div>

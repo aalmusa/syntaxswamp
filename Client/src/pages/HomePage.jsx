@@ -3,6 +3,14 @@ import PostCard from '../components/PostCard';
 import '../styles/common.css';
 import '../styles/HomePage.css';
 
+const formatDate = (dateString) => {
+  return new Date(dateString).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+};
+
 function HomePage() {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
