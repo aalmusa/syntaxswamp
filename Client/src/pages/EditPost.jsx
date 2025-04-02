@@ -23,23 +23,34 @@ function EditPost() {
   useEffect(() => {
     const fetchPost = async () => {
       try {
-        const response = await fetch(`http://localhost:18080/posts/${postId}`);
+        const response = await fetch(`http://localhost:18080/posts/${postId}`, {
+          headers: user?.token ? { "Authorization": `Bearer ${user.token}` } : {}
+        });
+        
         if (!response.ok) throw new Error("Post not found");
         const data = await response.json();
+
+        // Check if user can edit this post
+        const isOwner = data.user_id === parseInt(user.userId);
+        if (data.isPrivate && !isOwner) {
+          throw new Error("You cannot edit this private post");
+        }
+
         setTitle(data.title);
         setHtmlCode(data.html_code);
         setCssCode(data.css_code);
         setJsCode(data.js_code);
         setIsPrivate(data.isPrivate || false);
-        setIsOwner(data.user_id === parseInt(user.userId));
+        setIsOwner(isOwner);
       } catch (error) {
         setSaveStatus({ success: false, message: error.message });
+        navigate('/');
       } finally {
         setLoading(false);
       }
     };
     fetchPost();
-  }, [postId, user.userId]);
+  }, [postId, user.userId, user.token, navigate]);
 
   const handleSave = async () => {
     if (isSaving) return;

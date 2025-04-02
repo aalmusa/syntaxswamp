@@ -100,7 +100,9 @@ function ViewPost() {
     );
   }
 
-  const isOwner = user && post && parseInt(user.userId) === post.user_id;
+  // Only owner can edit private posts, anyone can edit public posts
+  const canEdit = user && (!post.isPrivate || parseInt(user.userId) === post.user_id);
+  const canDelete = user && parseInt(user.userId) === post.user_id;
 
   return (
     <div className="page-container">
@@ -117,17 +119,21 @@ function ViewPost() {
           </div>
         </div>
         <div className="header-actions">
-          {isOwner && (
+          {user && (
             <>
-              <Link to={`/posts/${postId}/edit`} className="button primary-button">
-                Edit Post
-              </Link>
-              <button
-                onClick={() => setShowDeleteModal(true)}
-                className="button danger-button"
-              >
-                Delete Post
-              </button>
+              {canEdit && (
+                <Link to={`/posts/${postId}/edit`} className="button primary-button">
+                  Edit Post
+                </Link>
+              )}
+              {canDelete && (
+                <button
+                  onClick={() => setShowDeleteModal(true)}
+                  className="button danger-button"
+                >
+                  Delete Post
+                </button>
+              )}
             </>
           )}
         </div>
