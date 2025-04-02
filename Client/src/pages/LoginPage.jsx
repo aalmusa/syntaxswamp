@@ -23,16 +23,19 @@ function LoginPage() {
         body: JSON.stringify({ username, password }),
       });
 
-      const data = await response.json();
+      const data = await response.text();
+      const contentType = response.headers.get('content-type');
+      const isJson = contentType && contentType.includes('application/json');
+      const parsedData = isJson ? JSON.parse(data) : { message: data };
 
       if (response.ok) {
-        login(data);
+        login(parsedData);
         navigate('/');
       } else {
-        setError(data.message || 'Login failed');
+        setError(parsedData.message || 'Invalid username or password');
       }
     } catch (err) {
-      setError('Network error. Please try again.');
+      setError('Unable to connect to server. Please check your internet connection.');
     } finally {
       setIsLoading(false);
     }

@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import EditorPane from "../components/EditorPane";
 import Preview from "../components/Preview";
+import DeleteConfirmModal from "../components/DeleteConfirmModal";
 import "../styles/ViewPost.css";
 import "../styles/common.css";
 
@@ -14,36 +15,37 @@ function ViewPost() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [creator, setCreator] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   useEffect(() => {
-    const fetchPost = async () => {
+    const fetchPostData = async () => {
       try {
         setLoading(true);
+        // Fetch post and creator data in parallel
+        const [postResponse, creatorResponse] = await Promise.all([
+          fetch(`http://localhost:18080/posts/${postId}`, {
+            headers: user?.token ? { "Authorization": `Bearer ${user.token}` } : {}
+          }),
+          fetch(`http://localhost:18080/posts/${postId}/creator`)
+        ]);
 
-        // Build headers with authentication token when available
-        const headers = {};
-        if (user && user.token) {
-          headers["Authorization"] = `Bearer ${user.token}`;
-          console.log("Sending request with auth token");
-        } else {
-          console.log("No authentication token available");
-        }
-
-        const response = await fetch(`http://localhost:18080/posts/${postId}`, {
-          headers,
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          if (response.status === 403) {
+        if (!postResponse.ok) {
+          const errorText = await postResponse.text();
+          if (postResponse.status === 403) {
             throw new Error(`Access denied: ${errorText}`);
           } else {
-            throw new Error(`Error ${response.status}: ${errorText}`);
+            throw new Error(`Error ${postResponse.status}: ${errorText}`);
           }
         }
 
-        const data = await response.json();
-        setPost(data);
+        const postData = await postResponse.json();
+        if (creatorResponse.ok) {
+          const creatorData = await creatorResponse.json();
+          setCreator(creatorData);
+        }
+        
+        setPost(postData);
         setError(null);
       } catch (err) {
         setError(err.message || "Failed to load post. Please try again later.");
@@ -53,38 +55,35 @@ function ViewPost() {
       }
     };
 
-    fetchPost();
+    fetchPostData();
   }, [postId, user]);
 
   const handleDelete = async () => {
-    if (
-      !window.confirm(
-        "Are you sure you want to delete this post? This action cannot be undone."
-      )
-    ) {
-      return;
-    }
-
     setIsDeleting(true);
     try {
+      if (!user?.token) {
+        throw new Error('You must be logged in to delete posts');
+      }
+
       const response = await fetch(`http://localhost:18080/posts/${postId}`, {
-        method: "DELETE",
+        method: 'DELETE',
         headers: {
-          Authorization: `Bearer ${user.token}`,
-        },
+          'Authorization': `Bearer ${user.token}`
+        }
       });
 
-      if (response.ok) {
-        alert("Post deleted successfully");
-        navigate("/");
-      } else {
-        const data = await response.text();
-        throw new Error(data || "Failed to delete post");
+      if (!response.ok) {
+        const errorData = await response.text();
+        throw new Error(errorData || 'Failed to delete post');
       }
+
+      navigate('/');
     } catch (err) {
-      alert("Error deleting post: " + err.message);
+      console.error('Delete error:', err);
+      alert(err.message);
     } finally {
       setIsDeleting(false);
+      setShowDeleteModal(false);
     }
   };
 
@@ -101,24 +100,36 @@ function ViewPost() {
     );
   }
 
+  const isOwner = user && post && parseInt(user.userId) === post.user_id;
+
   return (
     <div className="page-container">
       <div className="page-header">
         <div className="header-left">
-          <h2 className="page-title">{post.title}</h2>
-          {post.isPrivate && <span className="privacy-badge">Private</span>}
+          <div className="title-section">
+            <h2 className="page-title">{post.title}</h2>
+            {creator && (
+              <div className="post-meta">
+                Created by <span className="creator-name">{creator.username}</span>
+                {post.isPrivate && <span className="privacy-badge">Private</span>}
+              </div>
+            )}
+          </div>
         </div>
         <div className="header-actions">
-          <Link to={`/posts/${postId}/edit`} className="button primary-button">
-            Edit Post
-          </Link>
-          <button
-            onClick={handleDelete}
-            className="button danger-button"
-            disabled={isDeleting}
-          >
-            {isDeleting ? "Deleting..." : "Delete Post"}
-          </button>
+          {isOwner && (
+            <>
+              <Link to={`/posts/${postId}/edit`} className="button primary-button">
+                Edit Post
+              </Link>
+              <button
+                onClick={() => setShowDeleteModal(true)}
+                className="button danger-button"
+              >
+                Delete Post
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -153,6 +164,13 @@ function ViewPost() {
           />
         </div>
       </div>
+
+      <DeleteConfirmModal 
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleDelete}
+        isDeleting={isDeleting}
+      />
     </div>
   );
 }

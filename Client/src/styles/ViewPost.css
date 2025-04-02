@@ -41,6 +41,25 @@
   font-weight: 600;
 }
 
+.title-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.post-meta {
+  color: var(--gray-600);
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.creator-name {
+  color: var(--primary-color);
+  font-weight: 500;
+}
+
 .header-actions {
   display: flex;
   gap: var(--spacing-sm);

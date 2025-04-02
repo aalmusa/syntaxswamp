@@ -36,7 +36,15 @@ function HomePage() {
     const fetchPosts = async () => {
       try {
         setLoading(true);
-        const response = await fetch("http://localhost:18080/posts");
+        const headers = {};
+        if (user?.token) {
+          headers["Authorization"] = `Bearer ${user.token}`;
+        }
+
+        const response = await fetch("http://localhost:18080/posts", {
+          headers,
+        });
+
         if (!response.ok) {
           throw new Error(`Error: ${response.status}`);
         }
@@ -52,7 +60,7 @@ function HomePage() {
     };
 
     fetchPosts();
-  }, []);
+  }, [user]);
 
   return (
     <div className="page-container">
@@ -72,7 +80,11 @@ function HomePage() {
         ) : (
           <div className="posts-grid">
             {posts.map((post) => (
-              <PostCard key={post.id} post={post} />
+              <PostCard 
+                key={post.id} 
+                post={post}
+                user={user}
+              />
             ))}
           </div>
         )}

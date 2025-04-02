@@ -9,6 +9,26 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
+.nav-section {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex: 1;
+}
+
+.nav-section:first-child {
+  justify-content: flex-start;
+}
+
+.nav-center {
+  justify-content: center;
+  flex: 2;
+}
+
+.nav-section:last-child {
+  justify-content: flex-end;
+}
+
 .navbar .container {
   max-width: 1200px;
   margin: 0 auto;
@@ -50,9 +70,14 @@
   gap: 1rem;
 }
 
+.user-welcome {
+  font-size: 1.1rem;
+  color: var(--gray-600);
+}
+
 .username {
-  color: var(--gray-700);
-  font-weight: 500;
+  color: var(--primary-color);
+  font-weight: 600;
 }
 
 .logout-button {

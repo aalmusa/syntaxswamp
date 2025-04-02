@@ -7,15 +7,21 @@ function Navbar() {
 
   return (
     <nav className="navbar">
-      <Link to="/" className="nav-brand">SyntaxSwamp</Link>
+      <div className="nav-section">
+        <Link to="/" className="nav-brand">SyntaxSwamp</Link>
+      </div>
       {user && (
-        <div className="nav-actions">
-          <Link to="/posts/new" className="create-button">Create New</Link>
-          <div className="user-info">
-            <span className="username">{user.username}</span>
+        <>
+          <div className="nav-section nav-center">
+            <div className="user-welcome">
+              Welcome, <span className="username">{user.username}</span>
+            </div>
+          </div>
+          <div className="nav-section">
+            <Link to="/posts/new" className="create-button">Create New</Link>
             <button onClick={logout} className="logout-button">Logout</button>
           </div>
-        </div>
+        </>
       )}
     </nav>
   );

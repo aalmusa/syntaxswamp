@@ -1,16 +1,28 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import '../styles/PostCard.css';
 
 function PostCard({ post }) {
+  const { user } = useAuth();
   const [previewSrc, setPreviewSrc] = useState('');
-  
+  const [creator, setCreator] = useState(null);
+
   useEffect(() => {
     const fetchPostDetails = async () => {
       try {
-        const response = await fetch(`http://localhost:18080/posts/${post.id}`);
-        if (response.ok) {
-          const data = await response.json();
+        const headers = user?.token ? {
+          "Authorization": `Bearer ${user.token}`
+        } : {};
+
+        // Fetch both post and creator details with auth headers
+        const [postResponse, creatorResponse] = await Promise.all([
+          fetch(`http://localhost:18080/posts/${post.id}`, { headers }),
+          fetch(`http://localhost:18080/posts/${post.id}/creator`, { headers })
+        ]);
+
+        if (postResponse.ok) {
+          const data = await postResponse.json();
           const previewDoc = `
             <!DOCTYPE html>
             <html>
@@ -49,13 +61,18 @@ function PostCard({ post }) {
           `;
           setPreviewSrc(previewDoc);
         }
+
+        if (creatorResponse.ok) {
+          const creatorData = await creatorResponse.json();
+          setCreator(creatorData);
+        }
       } catch (error) {
         console.error("Error fetching post details:", error);
       }
     };
     
     fetchPostDetails();
-  }, [post.id]);
+  }, [post.id, user]);
 
   // Format date to a more readable form
   const formatDate = (dateString) => {
@@ -84,7 +101,15 @@ function PostCard({ post }) {
           )}
         </div>
         <div className="post-info">
-          <h3 className="post-title">{post.title}</h3>
+          <h3 className="post-title">
+            {post.title}
+            {post.isPrivate && <span className="privacy-badge">Private</span>}
+          </h3>
+          {creator && (
+            <p className="post-creator">
+              Created by <span className="creator-name">{creator.username}</span>
+            </p>
+          )}
           <div className="post-dates">
             <p className="post-date">Created: {formatDate(post.created_at)}</p>
             <p className="post-date">Updated: {formatDate(post.updated_at || post.created_at)}</p>
