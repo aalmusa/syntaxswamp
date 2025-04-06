@@ -44,6 +44,22 @@
   transform: none; /* Remove transform as we're now handling scaling in the preview HTML */
 }
 
+.preview-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  pointer-events: none;
+  background: white;
+}
+
+.preview-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: white;
+}
+
 .loading-preview {
   display: flex;
   align-items: center;
@@ -106,4 +122,53 @@
   border-radius: var(--border-radius-sm);
   font-size: 0.75rem;
   font-weight: 600;
+}
+
+.lock-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  text-align: center;
+}
+
+.lock-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lock-status {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.lock-timer {
+  font-size: 18px;
+  font-family: monospace;
+}
+
+.lock-badge {
+  margin-left: 8px;
+  padding: 2px 6px;
+  font-size: 12px;
+  border-radius: 4px;
+  background-color: #ff4444;
+  color: white;
+}
+
+.lock-badge.your-lock {
+  background-color: #44aa44;
+}
+
+.post-actions {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
 }

@@ -17,6 +17,7 @@ function ViewPost() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [creator, setCreator] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [lockInfo, setLockInfo] = useState(null);
 
   useEffect(() => {
     const fetchPostData = async () => {
@@ -57,6 +58,57 @@ function ViewPost() {
 
     fetchPostData();
   }, [postId, user]);
+
+  useEffect(() => {
+    const checkLockStatus = async () => {
+      try {
+        const response = await fetch(`http://localhost:18080/posts/${postId}/lock`, {
+          headers: user?.token ? {
+            'Authorization': `Bearer ${user.token}`
+          } : {}
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setLockInfo(data);
+        }
+      } catch (err) {
+        console.error('Error checking lock status:', err);
+      }
+    };
+
+    const interval = setInterval(checkLockStatus, 5000); // Check every 5 seconds
+    checkLockStatus(); // Initial check
+
+    return () => clearInterval(interval);
+  }, [postId, user]);
+
+  const handleEditClick = async (e) => {
+    e.preventDefault();
+    
+    try {
+      const response = await fetch(`http://localhost:18080/posts/${postId}/lock`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${user.token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ duration: 300 })
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        // Successfully acquired lock
+        navigate(`/posts/${postId}/edit`);
+      } else {
+        alert(data.message || 'This post is currently being edited by another user');
+      }
+    } catch (err) {
+      console.error('Error:', err);
+      alert('Unable to edit post at this time');
+    }
+  };
 
   const handleDelete = async () => {
     setIsDeleting(true);
@@ -122,9 +174,12 @@ function ViewPost() {
           {user && (
             <>
               {canEdit && (
-                <Link to={`/posts/${postId}/edit`} className="button primary-button">
+                <button 
+                  onClick={handleEditClick}
+                  className="button primary-button"
+                >
                   Edit Post
-                </Link>
+                </button>
               )}
               {canDelete && (
                 <button

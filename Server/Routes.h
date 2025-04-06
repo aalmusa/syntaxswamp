@@ -356,12 +356,68 @@ inline void setupPostRoutes(
             return crow::response(401, "Unauthorized - Login required");
         }
         int user_id = auth.getUserId(req);
-        
+
+        // Check lock status
+        if (!locksMapMutex.tryLockWithTimeout(500)) {
+            return crow::response(503, "Server busy, please try again later");
+        }
+
+        bool hasValidLock = false;
+        bool isLocked = false;
+        try {
+            auto lock_it = postLocks.find(id);
+            auto now = std::chrono::system_clock::now();
+            
+            if (lock_it != postLocks.end() && lock_it->second.expires_at > now) {
+                // Post is currently locked
+                isLocked = true;
+                if (lock_it->second.user_id == user_id) {
+                    hasValidLock = true;
+                }
+            } else if (lock_it != postLocks.end()) {
+                // Remove expired lock
+                postLocks.erase(lock_it);
+            }
+
+            // If no valid lock exists, automatically create one
+            if (!isLocked) {
+                // Get username for the lock
+                std::string username = "Unknown User";
+                sqlite3_stmt* name_stmt;
+                const char* name_sql = "SELECT username FROM users WHERE user_id = ?";
+                
+                if (sqlite3_prepare_v2(db, name_sql, -1, &name_stmt, nullptr) == SQLITE_OK) {
+                    sqlite3_bind_int(name_stmt, 1, user_id);
+                    if (sqlite3_step(name_stmt) == SQLITE_ROW) {
+                        username = (const char*)sqlite3_column_text(name_stmt, 0);
+                    }
+                    sqlite3_finalize(name_stmt);
+                }
+
+                // Create new lock
+                postLocks[id] = {
+                    user_id,
+                    now + std::chrono::seconds(DEFAULT_LOCK_DURATION),
+                    username
+                };
+                hasValidLock = true;
+            }
+
+            locksMapMutex.unlock();
+        } catch (...) {
+            locksMapMutex.unlock();
+            return crow::response(500, "Error checking lock status");
+        }
+
+        if (!hasValidLock) {
+            return crow::response(423, "This post is being edited by another user");
+        }
+
         auto x = crow::json::load(req.body);
         if (!x) {
             return crow::response(400, "Invalid JSON");
         }
-        
+
         // Get post privacy status and ownership before acquiring locks
         sqlite3_stmt* privacy_stmt;
         int post_owner_id = -1;

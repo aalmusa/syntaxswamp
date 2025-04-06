@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import EditorPane from "../components/EditorPane";
 import Preview from "../components/Preview";
@@ -19,38 +19,145 @@ function EditPost() {
   const [saveStatus, setSaveStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isOwner, setIsOwner] = useState(false);
+  const hasActiveLock = useRef(false);
+  const lockCheckRef = useRef(null);
+  const [inactiveTime, setInactiveTime] = useState(0);
+  const lastActivityRef = useRef(Date.now());
+
+  const handleActivity = useCallback(() => {
+    lastActivityRef.current = Date.now();
+    setInactiveTime(0);
+  }, []);
 
   useEffect(() => {
-    const fetchPost = async () => {
+    const verifyLockAndLoadPost = async () => {
       try {
-        const response = await fetch(`http://localhost:18080/posts/${postId}`, {
-          headers: user?.token ? { "Authorization": `Bearer ${user.token}` } : {}
+        const lockResponse = await fetch(`http://localhost:18080/posts/${postId}/lock`, {
+          headers: {
+            'Authorization': `Bearer ${user.token}`
+          }
         });
-        
-        if (!response.ok) throw new Error("Post not found");
-        const data = await response.json();
 
-        // Check if user can edit this post
-        const isOwner = data.user_id === parseInt(user.userId);
-        if (data.isPrivate && !isOwner) {
-          throw new Error("You cannot edit this private post");
+        const lockData = await lockResponse.json();
+
+        if (!lockResponse.ok || !lockData.locked || !lockData.is_lock_holder) {
+          navigate(`/posts/${postId}`);
+          return;
         }
 
+        hasActiveLock.current = true;
+
+        const response = await fetch(`http://localhost:18080/posts/${postId}`, {
+          headers: {
+            'Authorization': `Bearer ${user.token}`
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch post');
+        }
+
+        const data = await response.json();
         setTitle(data.title);
         setHtmlCode(data.html_code);
         setCssCode(data.css_code);
         setJsCode(data.js_code);
         setIsPrivate(data.isPrivate || false);
-        setIsOwner(isOwner);
-      } catch (error) {
-        setSaveStatus({ success: false, message: error.message });
-        navigate('/');
-      } finally {
+        setIsOwner(data.user_id === parseInt(user.userId));
         setLoading(false);
+      } catch (error) {
+        console.error('Error:', error);
+        navigate(`/posts/${postId}`);
       }
     };
-    fetchPost();
-  }, [postId, user.userId, user.token, navigate]);
+
+    verifyLockAndLoadPost();
+
+    lockCheckRef.current = setInterval(async () => {
+      if (!hasActiveLock.current) return;
+
+      try {
+        const response = await fetch(`http://localhost:18080/posts/${postId}/lock`, {
+          headers: { 'Authorization': `Bearer ${user.token}` }
+        });
+
+        const data = await response.json();
+        if (!response.ok || !data.locked || !data.is_lock_holder) {
+          if (lockCheckRef.current) {
+            clearInterval(lockCheckRef.current);
+          }
+          hasActiveLock.current = false;
+          navigate(`/posts/${postId}`);
+        }
+      } catch (error) {
+        console.error('Error verifying lock:', error);
+      }
+    }, 30000);
+
+    return () => {
+      if (lockCheckRef.current) {
+        clearInterval(lockCheckRef.current);
+      }
+      if (hasActiveLock.current) {
+        releaseLock();
+      }
+    };
+  }, [postId, user.token, navigate]);
+
+  const releaseLock = async () => {
+    if (!hasActiveLock.current) return;
+
+    try {
+      const response = await fetch(`http://localhost:18080/posts/${postId}/lock`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${user.token}`
+        }
+      });
+
+      if (response.ok) {
+        hasActiveLock.current = false;
+      }
+    } catch (err) {
+      console.error('Error releasing lock:', err);
+    }
+  };
+
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      releaseLock();
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [postId, user]);
+
+  useEffect(() => {
+    const events = ['mousemove', 'keydown', 'click', 'scroll'];
+    events.forEach(event => {
+      window.addEventListener(event, handleActivity);
+    });
+
+    const inactivityCheck = setInterval(() => {
+      const timeSinceLastActivity = Math.floor((Date.now() - lastActivityRef.current) / 1000);
+      setInactiveTime(timeSinceLastActivity);
+      
+      if (timeSinceLastActivity >= 300) { // 5 minutes
+        clearInterval(inactivityCheck);
+        releaseLock();
+        navigate(`/posts/${postId}`);
+      }
+    }, 1000);
+
+    return () => {
+      events.forEach(event => {
+        window.removeEventListener(event, handleActivity);
+      });
+      clearInterval(inactivityCheck);
+    };
+  }, [handleActivity, navigate, postId]);
 
   const handleSave = async () => {
     if (isSaving) return;
@@ -74,6 +181,7 @@ function EditPost() {
       });
 
       if (response.ok) {
+        await releaseLock();
         setSaveStatus({
           success: true,
           message: "Post updated successfully",
@@ -115,6 +223,9 @@ function EditPost() {
           />
         </div>
         <div className="header-actions">
+          <div className="inactivity-timer">
+            Inactive for: {Math.floor(inactiveTime / 60)}:{(inactiveTime % 60).toString().padStart(2, '0')}
+          </div>
           {isOwner && (
             <div className="privacy-toggle">
               <input

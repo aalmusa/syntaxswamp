@@ -173,6 +173,16 @@
   font-size: 1.2rem;
 }
 
+.inactivity-timer {
+  padding: 8px 12px;
+  background-color: var(--gray-100);
+  border-radius: var(--border-radius-sm);
+  font-family: monospace;
+  font-size: 14px;
+  color: var(--gray-600);
+  margin-right: 12px;
+}
+
 @media (max-width: 768px) {
   .editors-container {
     flex-direction: column;
