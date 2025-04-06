@@ -139,6 +139,55 @@ function ViewPost() {
     }
   };
 
+  const handleFork = async () => {
+    if (!user) {
+      alert('Please log in to fork this post');
+      return;
+    }
+
+    try {
+      // First get the current post data
+      const response = await fetch(`http://localhost:18080/posts/${postId}`, {
+        headers: {
+          'Authorization': `Bearer ${user.token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      const postData = await response.json();
+
+      // Create new post using existing data
+      const forkResponse = await fetch('http://localhost:18080/posts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user.token}`
+        },
+        body: JSON.stringify({
+          title: `${postData.title} (Fork)`,
+          html_code: postData.html_code || '',
+          css_code: postData.css_code || '',
+          js_code: postData.js_code || '',
+          isPrivate: false // Default to public for forked posts
+        })
+      });
+
+      if (!forkResponse.ok) {
+        const errorText = await forkResponse.text();
+        throw new Error(errorText);
+      }
+
+      const newPost = await forkResponse.json();
+      navigate(`/posts/${newPost.id}`);
+    } catch (error) {
+      console.error('Error forking post:', error);
+      alert(error.message || 'Failed to fork post. Please try again.');
+    }
+  };
+
   if (loading) {
     return <div className="loading-container">Loading post...</div>;
   }
@@ -181,6 +230,13 @@ function ViewPost() {
                   Edit Post
                 </button>
               )}
+              <button
+                onClick={handleFork}
+                className="button secondary-button"
+                title="Create your own copy of this post"
+              >
+                Fork
+              </button>
               {canDelete && (
                 <button
                   onClick={() => setShowDeleteModal(true)}
