@@ -1,5 +1,6 @@
-@import './variables.css';
+@import "./variables.css";
 
+/* Editor pane container */
 .editor-pane {
   flex: 1;
   min-width: 300px;
@@ -12,24 +13,54 @@
   background-color: white;
   overflow: hidden;
   transition: flex var(--transition-speed);
+  position: relative;
 }
 
 .editor-pane.maximized {
   flex: 3;
 }
 
+/* Header styling */
 .editor-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: var(--spacing-sm);
-  background-color: var(--dark-color) !important; /* Ensure background color isn't overridden */
-  color: white !important; /* Ensure text color isn't overridden */
+  background-color: var(--dark-color) !important;
+  color: white !important;
 }
 
 .editor-label {
   font-weight: bold;
   font-size: 0.9rem;
+}
+
+/* Button container */
+.editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Button styling */
+.copy-button {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  font-size: 0.8rem;
+  padding: 3px 8px;
+  cursor: pointer;
+  border-radius: var(--border-radius-sm);
+  transition: all var(--transition-speed);
+}
+
+.copy-button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.copy-button.success {
+  background-color: var(--success-color);
+  border-color: var(--success-color);
 }
 
 .maximize-button {
@@ -50,20 +81,12 @@
 .code-editor {
   flex: 1;
   width: 100%;
-  padding: var(--spacing-md);
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  font-size: 14px;
-  line-height: 1.5;
-  border: none;
-  resize: none;
-  background-color: var(--gray-900);
-  color: var(--gray-200);
+  height: 100%;
+  position: relative;
+  overflow: auto; /* Use auto instead of hidden to enable scrolling when needed */
 }
 
-.code-editor:focus {
-  outline: none;
-}
-
+/* Custom styling for CodeMirror editor language indicators */
 .code-editor[data-language="html"] {
   border-top: 3px solid #e34c26;
 }
@@ -74,4 +97,93 @@
 
 .code-editor[data-language="javascript"] {
   border-top: 3px solid #f0db4f;
+}
+
+/* Fix CodeMirror styles for proper display and scrolling */
+.editor-pane .cm-editor {
+  height: 100%;
+}
+
+/* Fix scrolling and centering issues */
+.editor-pane .cm-scroller {
+  overflow: auto !important;
+  height: 100% !important;
+}
+
+.editor-pane .cm-content {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+/* Force scrolling to work - these are the critical rules */
+.editor-pane .w-tc-editor-scrollbar {
+  overflow: auto !important;
+  max-height: none !important;
+}
+
+/* Ensure scrollbars work properly */
+.editor-pane .cm-gutters {
+  height: auto !important;
+  min-height: 100%;
+}
+
+/* Make sure background colors are preserved in read-only mode */
+.editor-pane.read-only .cm-editor {
+  opacity: 0.95;
+  background-color: inherit;
+}
+
+.editor-pane.read-only .cm-scroller {
+  background-color: inherit;
+}
+
+/* Override auto-height that might be causing scrolling issues */
+.editor-pane .w-tc-editor {
+  height: 100% !important;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Remove any whitespace-related styling that might affect scrolling */
+.editor-pane .cm-line {
+  white-space: pre !important;
+  text-align: left;
+}
+
+/* Ensure the editor container is tall enough for long content */
+.editor-pane .w-tc-editor .cm {
+  min-height: 100px !important;
+  height: 100% !important;
+}
+
+/* Force proper dimensions to containers that might affect scrolling */
+.editor-pane .w-tc-editor-warp {
+  flex: 1;
+  position: relative;
+}
+
+.editor-pane .cm {
+  height: 100% !important;
+}
+
+/* Ensure cursor appears as read-only when appropriate */
+.editor-pane.read-only .cm-content {
+  cursor: text;
+}
+
+/* Read-only styles for CodeMirror */
+.editor-pane.read-only .cm-content {
+  cursor: default;
+  background-color: var(--gray-200);
+}
+
+.editor-pane.read-only .cm-editor {
+  opacity: 0.9;
+}
+
+/* Make the overall container fill the entire space */
+.editor-pane .w-tc-editor {
+  height: 100%;
+  width: 100%;
 }

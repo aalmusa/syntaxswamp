@@ -1,4 +1,4 @@
-@import './variables.css';
+@import "./variables.css";
 
 .home-page {
   max-width: 1200px;
@@ -22,9 +22,12 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: var(--spacing-lg);
+  padding: var(--spacing-lg);
 }
 
-.loading, .error-message, .no-posts {
+.loading,
+.error-message,
+.no-posts {
   text-align: center;
   padding: var(--spacing-xl);
   font-size: var(--font-size-lg);

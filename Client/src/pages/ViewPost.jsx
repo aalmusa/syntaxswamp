@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import EditorPane from "../components/EditorPane";
-import Preview from "../components/Preview";
+import ResizablePreview from "../components/ResizablePreview";
 import DeleteConfirmModal from "../components/DeleteConfirmModal";
 import "../styles/ViewPost.css";
 import "../styles/common.css";
@@ -26,9 +26,11 @@ function ViewPost() {
         // Fetch post and creator data in parallel
         const [postResponse, creatorResponse] = await Promise.all([
           fetch(`http://localhost:18080/posts/${postId}`, {
-            headers: user?.token ? { "Authorization": `Bearer ${user.token}` } : {}
+            headers: user?.token
+              ? { Authorization: `Bearer ${user.token}` }
+              : {},
           }),
-          fetch(`http://localhost:18080/posts/${postId}/creator`)
+          fetch(`http://localhost:18080/posts/${postId}/creator`),
         ]);
 
         if (!postResponse.ok) {
@@ -45,7 +47,7 @@ function ViewPost() {
           const creatorData = await creatorResponse.json();
           setCreator(creatorData);
         }
-        
+
         setPost(postData);
         setError(null);
       } catch (err) {
@@ -62,18 +64,23 @@ function ViewPost() {
   useEffect(() => {
     const checkLockStatus = async () => {
       try {
-        const response = await fetch(`http://localhost:18080/posts/${postId}/lock`, {
-          headers: user?.token ? {
-            'Authorization': `Bearer ${user.token}`
-          } : {}
-        });
-        
+        const response = await fetch(
+          `http://localhost:18080/posts/${postId}/lock`,
+          {
+            headers: user?.token
+              ? {
+                  Authorization: `Bearer ${user.token}`,
+                }
+              : {},
+          }
+        );
+
         if (response.ok) {
           const data = await response.json();
           setLockInfo(data);
         }
       } catch (err) {
-        console.error('Error checking lock status:', err);
+        console.error("Error checking lock status:", err);
       }
     };
 
@@ -85,28 +92,33 @@ function ViewPost() {
 
   const handleEditClick = async (e) => {
     e.preventDefault();
-    
+
     try {
-      const response = await fetch(`http://localhost:18080/posts/${postId}/lock`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${user.token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ duration: 300 })
-      });
+      const response = await fetch(
+        `http://localhost:18080/posts/${postId}/lock`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${user.token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ duration: 300 }),
+        }
+      );
 
       const data = await response.json();
-      
+
       if (response.ok) {
         // Successfully acquired lock
         navigate(`/posts/${postId}/edit`);
       } else {
-        alert(data.message || 'This post is currently being edited by another user');
+        alert(
+          data.message || "This post is currently being edited by another user"
+        );
       }
     } catch (err) {
-      console.error('Error:', err);
-      alert('Unable to edit post at this time');
+      console.error("Error:", err);
+      alert("Unable to edit post at this time");
     }
   };
 
@@ -114,24 +126,24 @@ function ViewPost() {
     setIsDeleting(true);
     try {
       if (!user?.token) {
-        throw new Error('You must be logged in to delete posts');
+        throw new Error("You must be logged in to delete posts");
       }
 
       const response = await fetch(`http://localhost:18080/posts/${postId}`, {
-        method: 'DELETE',
+        method: "DELETE",
         headers: {
-          'Authorization': `Bearer ${user.token}`
-        }
+          Authorization: `Bearer ${user.token}`,
+        },
       });
 
       if (!response.ok) {
         const errorData = await response.text();
-        throw new Error(errorData || 'Failed to delete post');
+        throw new Error(errorData || "Failed to delete post");
       }
 
-      navigate('/');
+      navigate("/");
     } catch (err) {
-      console.error('Delete error:', err);
+      console.error("Delete error:", err);
       alert(err.message);
     } finally {
       setIsDeleting(false);
@@ -141,7 +153,7 @@ function ViewPost() {
 
   const handleFork = async () => {
     if (!user) {
-      alert('Please log in to fork this post');
+      alert("Please log in to fork this post");
       return;
     }
 
@@ -149,8 +161,8 @@ function ViewPost() {
       // First get the current post data
       const response = await fetch(`http://localhost:18080/posts/${postId}`, {
         headers: {
-          'Authorization': `Bearer ${user.token}`
-        }
+          Authorization: `Bearer ${user.token}`,
+        },
       });
 
       if (!response.ok) {
@@ -160,19 +172,19 @@ function ViewPost() {
       const postData = await response.json();
 
       // Create new post using existing data
-      const forkResponse = await fetch('http://localhost:18080/posts', {
-        method: 'POST',
+      const forkResponse = await fetch("http://localhost:18080/posts", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user.token}`
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${user.token}`,
         },
         body: JSON.stringify({
           title: `${postData.title} (Fork)`,
-          html_code: postData.html_code || '',
-          css_code: postData.css_code || '',
-          js_code: postData.js_code || '',
-          isPrivate: false // Default to public for forked posts
-        })
+          html_code: postData.html_code || "",
+          css_code: postData.css_code || "",
+          js_code: postData.js_code || "",
+          isPrivate: false, // Default to public for forked posts
+        }),
       });
 
       if (!forkResponse.ok) {
@@ -183,8 +195,8 @@ function ViewPost() {
       const newPost = await forkResponse.json();
       navigate(`/posts/${newPost.id}`);
     } catch (error) {
-      console.error('Error forking post:', error);
-      alert(error.message || 'Failed to fork post. Please try again.');
+      console.error("Error forking post:", error);
+      alert(error.message || "Failed to fork post. Please try again.");
     }
   };
 
@@ -202,7 +214,8 @@ function ViewPost() {
   }
 
   // Only owner can edit private posts, anyone can edit public posts
-  const canEdit = user && (!post.isPrivate || parseInt(user.userId) === post.user_id);
+  const canEdit =
+    user && (!post.isPrivate || parseInt(user.userId) === post.user_id);
   const canDelete = user && parseInt(user.userId) === post.user_id;
 
   return (
@@ -213,8 +226,11 @@ function ViewPost() {
             <h2 className="page-title">{post.title}</h2>
             {creator && (
               <div className="post-meta">
-                Created by <span className="creator-name">{creator.username}</span>
-                {post.isPrivate && <span className="privacy-badge">Private</span>}
+                Created by{" "}
+                <span className="creator-name">{creator.username}</span>
+                {post.isPrivate && (
+                  <span className="privacy-badge">Private</span>
+                )}
               </div>
             )}
           </div>
@@ -223,7 +239,7 @@ function ViewPost() {
           {user && (
             <>
               {canEdit && (
-                <button 
+                <button
                   onClick={handleEditClick}
                   className="button primary-button"
                 >
@@ -257,32 +273,32 @@ function ViewPost() {
             code={post.html_code}
             onChange={() => {}} // Read-only in view mode
             label="HTML"
+            readOnly={true}
           />
           <EditorPane
             language="css"
             code={post.css_code}
             onChange={() => {}} // Read-only in view mode
             label="CSS"
+            readOnly={true}
           />
           <EditorPane
             language="javascript"
             code={post.js_code}
             onChange={() => {}} // Read-only in view mode
             label="JS"
+            readOnly={true}
           />
         </div>
 
-        <div className="preview-container">
-          <h3 className="preview-header">Preview</h3>
-          <Preview
-            htmlCode={post.html_code}
-            cssCode={post.css_code}
-            jsCode={post.js_code}
-          />
-        </div>
+        <ResizablePreview
+          htmlCode={post.html_code}
+          cssCode={post.css_code}
+          jsCode={post.js_code}
+        />
       </div>
 
-      <DeleteConfirmModal 
+      <DeleteConfirmModal
         isOpen={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
         onConfirm={handleDelete}

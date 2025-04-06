@@ -154,9 +154,10 @@
   display: flex;
   gap: var(--spacing-md);
   padding: var(--spacing-md);
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 200px;
+  max-height: 60vh; /* Cap the editor height */
   overflow-y: auto;
-  min-height: 300px;
 }
 
 .preview-container {

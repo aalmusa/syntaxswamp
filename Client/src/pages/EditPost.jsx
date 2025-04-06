@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import EditorPane from "../components/EditorPane";
-import Preview from "../components/Preview";
+import ResizablePreview from "../components/ResizablePreview";
 import "../styles/CreatePost.css";
 import "../styles/common.css";
 import { useAuth } from "../context/AuthContext";
@@ -32,11 +32,14 @@ function EditPost() {
   useEffect(() => {
     const verifyLockAndLoadPost = async () => {
       try {
-        const lockResponse = await fetch(`http://localhost:18080/posts/${postId}/lock`, {
-          headers: {
-            'Authorization': `Bearer ${user.token}`
+        const lockResponse = await fetch(
+          `http://localhost:18080/posts/${postId}/lock`,
+          {
+            headers: {
+              Authorization: `Bearer ${user.token}`,
+            },
           }
-        });
+        );
 
         const lockData = await lockResponse.json();
 
@@ -49,12 +52,12 @@ function EditPost() {
 
         const response = await fetch(`http://localhost:18080/posts/${postId}`, {
           headers: {
-            'Authorization': `Bearer ${user.token}`
-          }
+            Authorization: `Bearer ${user.token}`,
+          },
         });
 
         if (!response.ok) {
-          throw new Error('Failed to fetch post');
+          throw new Error("Failed to fetch post");
         }
 
         const data = await response.json();
@@ -66,7 +69,7 @@ function EditPost() {
         setIsOwner(data.user_id === parseInt(user.userId));
         setLoading(false);
       } catch (error) {
-        console.error('Error:', error);
+        console.error("Error:", error);
         navigate(`/posts/${postId}`);
       }
     };
@@ -77,9 +80,12 @@ function EditPost() {
       if (!hasActiveLock.current) return;
 
       try {
-        const response = await fetch(`http://localhost:18080/posts/${postId}/lock`, {
-          headers: { 'Authorization': `Bearer ${user.token}` }
-        });
+        const response = await fetch(
+          `http://localhost:18080/posts/${postId}/lock`,
+          {
+            headers: { Authorization: `Bearer ${user.token}` },
+          }
+        );
 
         const data = await response.json();
         if (!response.ok || !data.locked || !data.is_lock_holder) {
@@ -90,7 +96,7 @@ function EditPost() {
           navigate(`/posts/${postId}`);
         }
       } catch (error) {
-        console.error('Error verifying lock:', error);
+        console.error("Error verifying lock:", error);
       }
     }, 30000);
 
@@ -108,18 +114,21 @@ function EditPost() {
     if (!hasActiveLock.current) return;
 
     try {
-      const response = await fetch(`http://localhost:18080/posts/${postId}/lock`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${user.token}`
+      const response = await fetch(
+        `http://localhost:18080/posts/${postId}/lock`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${user.token}`,
+          },
         }
-      });
+      );
 
       if (response.ok) {
         hasActiveLock.current = false;
       }
     } catch (err) {
-      console.error('Error releasing lock:', err);
+      console.error("Error releasing lock:", err);
     }
   };
 
@@ -128,23 +137,26 @@ function EditPost() {
       releaseLock();
     };
 
-    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener("beforeunload", handleBeforeUnload);
     return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [postId, user]);
 
   useEffect(() => {
-    const events = ['mousemove', 'keydown', 'click', 'scroll'];
-    events.forEach(event => {
+    const events = ["mousemove", "keydown", "click", "scroll"];
+    events.forEach((event) => {
       window.addEventListener(event, handleActivity);
     });
 
     const inactivityCheck = setInterval(() => {
-      const timeSinceLastActivity = Math.floor((Date.now() - lastActivityRef.current) / 1000);
+      const timeSinceLastActivity = Math.floor(
+        (Date.now() - lastActivityRef.current) / 1000
+      );
       setInactiveTime(timeSinceLastActivity);
-      
-      if (timeSinceLastActivity >= 300) { // 5 minutes
+
+      if (timeSinceLastActivity >= 300) {
+        // 5 minutes
         clearInterval(inactivityCheck);
         releaseLock();
         navigate(`/posts/${postId}`);
@@ -152,7 +164,7 @@ function EditPost() {
     }, 1000);
 
     return () => {
-      events.forEach(event => {
+      events.forEach((event) => {
         window.removeEventListener(event, handleActivity);
       });
       clearInterval(inactivityCheck);
@@ -224,7 +236,8 @@ function EditPost() {
         </div>
         <div className="header-actions">
           <div className="inactivity-timer">
-            Inactive for: {Math.floor(inactiveTime / 60)}:{(inactiveTime % 60).toString().padStart(2, '0')}
+            Inactive for: {Math.floor(inactiveTime / 60)}:
+            {(inactiveTime % 60).toString().padStart(2, "0")}
           </div>
           {isOwner && (
             <div className="privacy-toggle">
@@ -280,8 +293,11 @@ function EditPost() {
       </div>
 
       <div className="preview-container">
-        <h3 className="preview-header">Live Preview</h3>
-        <Preview htmlCode={htmlCode} cssCode={cssCode} jsCode={jsCode} />
+        <ResizablePreview
+          htmlCode={htmlCode}
+          cssCode={cssCode}
+          jsCode={jsCode}
+        />
       </div>
     </div>
   );

@@ -67,37 +67,45 @@ function HomePage() {
     if (!user?.token) return false;
 
     try {
-      const response = await fetch(`http://localhost:18080/posts/${postId}/lock`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${user.token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ duration: 300 }) // 5 minutes lock
-      });
+      const response = await fetch(
+        `http://localhost:18080/posts/${postId}/lock`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${user.token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ duration: 300 }), // 5 minutes lock
+        }
+      );
 
       const data = await response.json();
-      
+
       if (response.ok) {
-        setLockedPosts(prev => new Map(prev).set(postId, {
-          locked: true,
-          isHolder: true,
-          lockHolder: data.lock_holder,
-          expiresAt: data.expires_at
-        }));
+        setLockedPosts((prev) =>
+          new Map(prev).set(postId, {
+            locked: true,
+            isHolder: true,
+            lockHolder: data.lock_holder,
+            expiresAt: data.expires_at,
+          })
+        );
         return true;
-      } else if (response.status === 423) { // Locked by someone else
-        setLockedPosts(prev => new Map(prev).set(postId, {
-          locked: true,
-          isHolder: false,
-          lockHolder: data.lock_holder,
-          expiresAt: data.expires_at
-        }));
+      } else if (response.status === 423) {
+        // Locked by someone else
+        setLockedPosts((prev) =>
+          new Map(prev).set(postId, {
+            locked: true,
+            isHolder: false,
+            lockHolder: data.lock_holder,
+            expiresAt: data.expires_at,
+          })
+        );
         return false;
       }
       return false;
     } catch (err) {
-      console.error('Error acquiring lock:', err);
+      console.error("Error acquiring lock:", err);
       return false;
     }
   };
@@ -107,25 +115,25 @@ function HomePage() {
 
     try {
       await fetch(`http://localhost:18080/posts/${postId}/lock`, {
-        method: 'DELETE',
+        method: "DELETE",
         headers: {
-          'Authorization': `Bearer ${user.token}`
-        }
+          Authorization: `Bearer ${user.token}`,
+        },
       });
-      setLockedPosts(prev => {
+      setLockedPosts((prev) => {
         const newLocks = new Map(prev);
         newLocks.delete(postId);
         return newLocks;
       });
     } catch (err) {
-      console.error('Error releasing lock:', err);
+      console.error("Error releasing lock:", err);
     }
   };
 
   // Add periodic lock status check
   useEffect(() => {
     if (!user) return; // Only check locks if user is logged in
-    
+
     const checkLocksStatus = async () => {
       // Make a copy of current locks to check
       const currentLocks = new Map(lockedPosts);
@@ -133,7 +141,7 @@ function HomePage() {
         const status = await checkLockStatus(postId);
         if (!status?.locked) {
           // Remove expired locks
-          setLockedPosts(prev => {
+          setLockedPosts((prev) => {
             const newLocks = new Map(prev);
             newLocks.delete(postId);
             return newLocks;
@@ -149,33 +157,40 @@ function HomePage() {
   // Modified checkLockStatus to handle expired locks
   const checkLockStatus = async (postId) => {
     try {
-      const response = await fetch(`http://localhost:18080/posts/${postId}/lock`, {
-        headers: user?.token ? {
-          'Authorization': `Bearer ${user.token}`
-        } : {}
-      });
-      
+      const response = await fetch(
+        `http://localhost:18080/posts/${postId}/lock`,
+        {
+          headers: user?.token
+            ? {
+                Authorization: `Bearer ${user.token}`,
+              }
+            : {},
+        }
+      );
+
       if (response.ok) {
         const data = await response.json();
         if (!data.locked) {
           // Clear the lock if it's expired
-          setLockedPosts(prev => {
+          setLockedPosts((prev) => {
             const newLocks = new Map(prev);
             newLocks.delete(postId);
             return newLocks;
           });
         } else {
-          setLockedPosts(prev => new Map(prev).set(postId, {
-            locked: true,
-            isHolder: data.is_lock_holder,
-            lockHolder: data.username,
-            seconds_remaining: data.seconds_remaining
-          }));
+          setLockedPosts((prev) =>
+            new Map(prev).set(postId, {
+              locked: true,
+              isHolder: data.is_lock_holder,
+              lockHolder: data.username,
+              seconds_remaining: data.seconds_remaining,
+            })
+          );
         }
         return data;
       }
     } catch (err) {
-      console.error('Error checking lock status:', err);
+      console.error("Error checking lock status:", err);
     }
     return null;
   };
@@ -187,7 +202,7 @@ function HomePage() {
       if (status?.locked) {
         alert(`This post is being edited by ${status.username}`);
       } else {
-        alert('Unable to edit post at this time');
+        alert("Unable to edit post at this time");
       }
       return false;
     }
@@ -224,14 +239,14 @@ function HomePage() {
 
     return () => {
       // Clear all timers on cleanup
-      timers.forEach(timer => clearTimeout(timer));
+      timers.forEach((timer) => clearTimeout(timer));
     };
   }, [lockedPosts]);
 
   return (
     <div className="page-container">
       <div className="page-header">
-        <h1 className="page-title">Recent Pens</h1>
+        <h1 className="page-title">Recent Posts</h1>
       </div>
 
       <div className="posts-container">
@@ -241,20 +256,22 @@ function HomePage() {
           <div className="error-message">{error}</div>
         ) : posts.length === 0 ? (
           <div className="no-posts">
-            <p>No posts found. Create your first code pen!</p>
+            <p>No posts found. Create your first syntax swamp!</p>
           </div>
         ) : (
-          <div className="posts-grid">
-            {posts.map((post) => (
-              <PostCard 
-                key={post.id} 
-                post={post}
-                user={user}
-                lockInfo={lockedPosts.get(post.id)}
-                onEdit={() => handleEdit(post.id)}
-                onEditComplete={() => releaseLock(post.id)}
-              />
-            ))}
+          <div className="posts-container">
+            <div className="posts-grid">
+              {posts.map((post) => (
+                <PostCard
+                  key={post.id}
+                  post={post}
+                  user={user}
+                  lockInfo={lockedPosts.get(post.id)}
+                  onEdit={() => handleEdit(post.id)}
+                  onEditComplete={() => releaseLock(post.id)}
+                />
+              ))}
+            </div>
           </div>
         )}
       </div>

@@ -1,0 +1,125 @@
+@import "./variables.css";
+
+.resizable-preview-wrapper {
+  position: relative;
+  background-color: white;
+  border-top: 1px solid var(--gray-300);
+  min-height: 300px; /* Consistent minimum height */
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: height 0.05s ease;
+  margin-top: auto; /* Push to bottom of flex container */
+}
+
+.preview-resize-handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 10px;
+  cursor: ns-resize;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.preview-resize-handle:hover .handle-bar {
+  background-color: var(--primary-color);
+}
+
+.handle-bar {
+  width: 50px;
+  height: 4px;
+  border-radius: 2px;
+  background-color: var(--gray-400);
+  transition: background-color 0.2s ease;
+}
+
+.preview-content {
+  padding: var(--spacing-md) var(--spacing-lg);
+  padding-top: 16px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.preview-header-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-md);
+}
+
+.preview-header {
+  margin: 0;
+  color: var(--dark-color);
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+}
+
+.preview-expand-button {
+  background: transparent;
+  border: 1px solid var(--primary-color);
+  color: var(--primary-color);
+  font-size: 0.8rem;
+  padding: 3px 8px;
+  cursor: pointer;
+  border-radius: var(--border-radius-sm);
+  transition: all 0.2s ease;
+}
+
+.preview-expand-button:hover {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.preview-frame-container {
+  flex: 1;
+  overflow: hidden;
+  min-height: 100px; /* Ensure there's always some visible content */
+}
+
+.preview-frame-container iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+/* Update preview container to allow expansion */
+.page-container .resizable-preview-wrapper {
+  max-height: calc(
+    100vh - 70px
+  ); /* Allow it to expand almost to the full viewport height */
+  z-index: 5; /* Ensure it appears above other content when expanded */
+}
+
+/* Add styles to handle preview when maximized */
+.resizable-preview-wrapper.expanded {
+  position: fixed;
+  top: 70px; /* Leave space for the header/title */
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  max-height: none;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+  z-index: 100;
+}
+
+/* Make sure preview doesn't get pushed down by editors */
+.post-content {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 100px); /* Subtract header height */
+}
+
+.editors-container {
+  flex: 1 1 auto;
+  min-height: 200px;
+  max-height: 60vh; /* Cap the editor height */
+  overflow: auto;
+}

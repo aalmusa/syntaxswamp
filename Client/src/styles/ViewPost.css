@@ -116,27 +116,38 @@
 .editors-container {
   display: flex;
   flex-wrap: wrap;
-  flex: 1;
-  min-height: 300px;
+  flex: 1 1 auto;
+  min-height: 200px;
+  max-height: 60vh; /* Cap the editor height */
   overflow: auto;
   background-color: var(--gray-100);
-  padding: var(--spacing-sm);
+  padding: 10px;
 }
 
+/* The standard preview container styles from ViewPost.css should be 
+   overridden by the ResizablePreview styles, but we'll update for consistency */
 .preview-container {
-  flex: 1;
+  flex: 0 0 auto; /* Don't allow this to flex and push content */
   padding: var(--spacing-lg);
   background-color: white;
   border-top: 1px solid var(--gray-300);
   min-height: 300px;
 }
 
-.preview-header {
-  margin-top: 0;
-  margin-bottom: var(--spacing-md);
-  color: var(--dark-color);
-  font-size: var(--font-size-lg);
-  font-weight: 600;
+/* Make ResizablePreview appear higher in the page */
+.resizable-preview-wrapper {
+  min-height: 250px; /* Ensure consistency with preview-container */
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+}
+
+.page-container,
+.create-post-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .button.disabled {
